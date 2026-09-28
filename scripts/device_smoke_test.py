@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """Walks through the release APK on a connected device or emulator.
 
-Installs the APK, records a Swiggy card payment of ₹1,000 made for Rahul, and
+Installs the APK, records a Swiggy card payment of ₹1,000 made for Rahul and
 checks that the app shows ₹100 cashback, a ₹900 effective expense and ₹1,000
-owed by Rahul. Saves a screenshot of every screen along the way and fails on a
-crash or a wrong amount.
+owed by Rahul. Then records a ₹400 repayment (₹600 left) and adds a cashback
+rule. Saves a screenshot of every screen along the way and fails on a crash or
+a wrong amount.
 
 Usage: device_smoke_test.py <apk> <screenshot-dir>
 """
@@ -82,12 +83,13 @@ def text_field():
     return lambda node: node.get("class") == "android.widget.EditText"
 
 
-def find(matches, timeout=10.0):
+def find(matches, timeout=10.0, index=0):
+    """Returns the index-th node on screen that matches, waiting up to timeout seconds."""
     deadline = time.time() + timeout
     while True:
-        for node in ui_nodes():
-            if matches(node):
-                return node
+        found = [node for node in ui_nodes() if matches(node)]
+        if len(found) > index:
+            return found[index]
         if time.time() > deadline:
             return None
         time.sleep(0.5)
@@ -100,17 +102,17 @@ def scroll_down():
     time.sleep(1)
 
 
-def find_scrolling(matches, what, scrolls=4):
+def find_scrolling(matches, what, scrolls=4, index=0):
     for attempt in range(scrolls + 1):
-        node = find(matches, timeout=3 if attempt < scrolls else 5)
+        node = find(matches, timeout=3 if attempt < scrolls else 5, index=index)
         if node is not None:
             return node
         scroll_down()
     fail(f"{what} not found on screen")
 
 
-def tap(matches, what, scrolls=4):
-    node = find_scrolling(matches, what, scrolls)
+def tap(matches, what, scrolls=4, index=0):
+    node = find_scrolling(matches, what, scrolls, index)
     x1, y1, x2, y2 = map(int, re.findall(r"\d+", node.get("bounds")))
     adb("shell", "input", "tap", str((x1 + x2) // 2), str((y1 + y2) // 2))
     time.sleep(1)
@@ -123,7 +125,8 @@ def type_text(text):
 
 
 def hide_keyboard():
-    if "mInputShown=true" in adb("shell", "dumpsys", "input_method"):
+    state = adb("shell", "dumpsys", "input_method")
+    if any(marker in state for marker in ("mInputShown=true", "mIsInputViewShown=true", "isInputViewShown=true")):
         adb("shell", "input", "keyevent", "KEYCODE_BACK")
         time.sleep(1)
 
@@ -148,7 +151,7 @@ def main():
         fail("the dashboard did not appear")
     screenshot("01-dashboard-empty")
 
-    # Swiggy, card, ₹1,000, paid for Rahul.
+    # Swiggy, card, ₹1,000, paid for Rahul (added through the "Add person" dialog).
     tap(by_id("add_expense"), "Add expense button")
     tap(by_id("amount_input"), "amount field")
     type_text("1000")
@@ -158,6 +161,7 @@ def main():
     tap(by_id("add_person"), "Add person chip")
     tap(text_field(), "name field")
     type_text("Rahul")
+    hide_keyboard()
     tap(exact_text("Add"), "Add button")
     hide_keyboard()
 
@@ -178,20 +182,35 @@ def main():
     expect_text("Swiggy")
     screenshot("04-expenses")
 
+    # Rahul owes the full ₹1,000, not ₹900. Record a ₹400 repayment.
     tap(by_id("tab_udhaar"), "Udhaar tab")
     expect_text("Rahul")
     screenshot("05-udhaar")
     tap(with_text("Rahul"), "Rahul")
     expect_id_text("person_balance", "₹1,000")
+    tap(exact_text("You got"), "You got button")
+    tap(text_field(), "amount field")
+    type_text("400")
+    hide_keyboard()
+    tap(exact_text("Save"), "Save button")
+    expect_id_text("person_balance", "₹600")
     screenshot("06-rahul")
     adb("shell", "input", "keyevent", "KEYCODE_BACK")
     time.sleep(1)
 
+    # Add a cashback rule through the dialog.
     tap(by_id("tab_rules"), "Cashback tab")
     expect_text("Swiggy")
-    screenshot("07-cashback-rules")
     tap(by_id("add_rule"), "Add merchant button")
-    screenshot("08-add-rule-dialog")
+    tap(text_field(), "merchant field")
+    type_text("Blinkit")
+    tap(text_field(), "percentage field", index=1)
+    type_text("5")
+    hide_keyboard()
+    screenshot("07-add-rule")
+    tap(exact_text("Save"), "Save button")
+    expect_text("Blinkit")
+    screenshot("08-cashback-rules")
 
     check_alive()
     print("Device walkthrough passed")

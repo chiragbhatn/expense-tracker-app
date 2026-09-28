@@ -4,6 +4,8 @@ import androidx.compose.ui.semantics.SemanticsNode
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assertIsOff
+import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.ComposeTestRule
@@ -14,17 +16,30 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextInput
-import androidx.compose.ui.test.performTextReplacement
+import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import io.github.chiragbhatn.expensetracker.ExpenseTrackerApp
 import io.github.chiragbhatn.expensetracker.MainActivity
+import io.github.chiragbhatn.expensetracker.domain.Money
 import io.github.chiragbhatn.expensetracker.domain.PaymentMethod
+import io.github.chiragbhatn.expensetracker.domain.UdhaarDirection
+import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
+import java.time.LocalDate
 
-/** Drives the real app (Compose UI, view models and Room) through the cashback and udhaar flows. */
+/**
+ * Drives the real app (Compose UI, view models and Room) through the cashback
+ * and udhaar flows.
+ *
+ * Under Robolectric a dialog window takes focus, so a text field inside it
+ * blinks its cursor forever and Compose never goes idle. These tests therefore
+ * avoid dialogs with text fields (people are added through the repository);
+ * the emulator walkthrough in scripts/device_smoke_test.py covers those dialogs.
+ */
 @RunWith(AndroidJUnit4::class)
 @Config(qualifiers = "w411dp-h914dp-xxhdpi")
 class AppFlowTest {
@@ -32,9 +47,11 @@ class AppFlowTest {
     @get:Rule
     val compose = createAndroidComposeRule<MainActivity>()
 
+    private val container get() = ApplicationProvider.getApplicationContext<ExpenseTrackerApp>().container
+
     @Test
     fun payingForRahulOnSwiggy_cashbackIsYoursAndRahulOwesTheFullAmount() {
-        addSwiggyExpenseForRahul(amount = "1000")
+        addSwiggyExpenseForRahul()
 
         // Dashboard keeps card spending, cashback, effective expenses and udhaar apart.
         compose.waitForText(TestTags.DASHBOARD_CARD_SPENDING, "₹1,000")
@@ -64,16 +81,16 @@ class AppFlowTest {
 
     @Test
     fun repaymentReducesWhatRahulOwesButNotYourExpense() {
-        addSwiggyExpenseForRahul(amount = "1000")
+        val rahul = addSwiggyExpenseForRahul()
 
         compose.onNodeWithTag(TestTags.navTab(Routes.UDHAAR)).performClick()
         compose.waitUntilExists(hasText("Rahul"))
         compose.onNodeWithText("Rahul").performClick()
         compose.waitForText(TestTags.PERSON_BALANCE, "₹1,000")
 
-        compose.onNodeWithText("You got").performClick()
-        compose.onNodeWithTag(TestTags.AMOUNT_INPUT).performTextInput("400")
-        compose.onNodeWithTag(TestTags.DIALOG_CONFIRM).performClick()
+        runBlocking {
+            container.udhaar.addEntry(rahul, UdhaarDirection.GOT, Money.rupees(400), LocalDate.now(), "UPI")
+        }
         compose.waitForText(TestTags.PERSON_BALANCE, "₹600")
 
         compose.onNodeWithContentDescription("Back").performClick()
@@ -83,39 +100,41 @@ class AppFlowTest {
     }
 
     @Test
-    fun cashbackRulesCanBeAddedEditedSwitchedOffAndDeleted() {
+    fun switchingOnARuleAppliesItsCashback() {
         compose.onNodeWithTag(TestTags.navTab(Routes.RULES)).performClick()
+        compose.onNodeWithTag(TestTags.ruleSwitch("Zomato")).assertIsOff().performClick()
+        compose.onNodeWithTag(TestTags.ruleSwitch("Zomato")).assertIsOn()
 
-        compose.onNodeWithTag(TestTags.ADD_RULE).performClick()
-        compose.onNodeWithTag(TestTags.RULE_MERCHANT_INPUT).performTextInput("swiggy")
-        compose.onNodeWithTag(TestTags.RULE_PERCENTAGE_INPUT).performTextInput("5")
-        compose.onNodeWithTag(TestTags.DIALOG_CONFIRM).performClick()
-        compose.waitUntilExists(hasText("A rule for Swiggy already exists"))
+        compose.onNodeWithTag(TestTags.navTab(Routes.DASHBOARD)).performClick()
+        compose.onNodeWithTag(TestTags.ADD_EXPENSE).performClick()
+        compose.onNodeWithTag(TestTags.AMOUNT_INPUT).performTextInput("500")
+        compose.onNodeWithTag(TestTags.MERCHANT_INPUT).performTextInput("zomato")
 
-        compose.onNodeWithTag(TestTags.RULE_MERCHANT_INPUT).performTextReplacement("Blinkit")
-        compose.onNodeWithTag(TestTags.DIALOG_CONFIRM).performClick()
-        compose.waitUntilExists(hasText("5% cashback · On"))
-
-        compose.onNodeWithText("Blinkit").performClick()
-        compose.onNodeWithTag(TestTags.RULE_PERCENTAGE_INPUT).performTextReplacement("2.5")
-        compose.onNodeWithTag(TestTags.DIALOG_CONFIRM).performClick()
-        compose.waitUntilExists(hasText("2.5% cashback · On"))
-
-        compose.onNodeWithTag(TestTags.ruleSwitch("Blinkit")).performClick()
-        compose.waitUntilExists(hasText("2.5% cashback · Off"))
-
-        compose.onNodeWithContentDescription("Delete Blinkit rule").performClick()
-        compose.onNodeWithTag(TestTags.DIALOG_CONFIRM).performClick()
-        compose.waitUntil(5_000) { compose.onAllNodes(hasText("Blinkit")).fetchSemanticsNodes().isEmpty() }
+        compose.waitForText(TestTags.BREAKDOWN_EFFECTIVE, "₹450")
+        compose.assertText(TestTags.BREAKDOWN_ORIGINAL, "₹500")
+        compose.assertText(TestTags.BREAKDOWN_CASHBACK, "−₹50")
     }
 
-    private fun addSwiggyExpenseForRahul(amount: String) {
-        compose.onNodeWithTag(TestTags.ADD_EXPENSE).performClick()
-        compose.onNodeWithTag(TestTags.AMOUNT_INPUT).performTextInput(amount)
-        compose.onNodeWithTag(TestTags.MERCHANT_INPUT).performTextInput("Swiggy")
-        compose.onNodeWithTag(TestTags.ADD_PERSON).performScrollTo().performClick()
-        compose.onNodeWithTag(TestTags.NAME_INPUT).performTextInput("Rahul")
+    @Test
+    fun deletingARuleAsksForConfirmation() {
+        compose.onNodeWithTag(TestTags.navTab(Routes.RULES)).performClick()
+        compose.waitUntilExists(hasText("Amazon"))
+
+        compose.onNodeWithContentDescription("Delete Amazon rule").performClick()
         compose.onNodeWithTag(TestTags.DIALOG_CONFIRM).performClick()
+
+        compose.waitUntil(5_000) { compose.onAllNodes(hasText("Amazon")).fetchSemanticsNodes().isEmpty() }
+    }
+
+    /** Records ₹1,000 on Swiggy by card for Rahul and returns Rahul's id. */
+    private fun addSwiggyExpenseForRahul(): Long {
+        val rahul = runBlocking { container.udhaar.addPerson("Rahul") }
+
+        compose.onNodeWithTag(TestTags.ADD_EXPENSE).performClick()
+        compose.onNodeWithTag(TestTags.AMOUNT_INPUT).performTextInput("1000")
+        compose.onNodeWithTag(TestTags.MERCHANT_INPUT).performTextInput("Swiggy")
+        compose.waitUntilExists(hasTestTag(TestTags.paidFor("Rahul")))
+        compose.onNodeWithTag(TestTags.paidFor("Rahul")).performScrollTo().performClick()
 
         // The form shows the card side and the udhaar side of the same payment.
         compose.waitForText(TestTags.BREAKDOWN_UDHAAR, "₹1,000")
@@ -126,6 +145,7 @@ class AppFlowTest {
         compose.onNodeWithText("Rahul's udhaar", useUnmergedTree = true).assertExists()
 
         compose.onNodeWithTag(TestTags.SAVE_EXPENSE).performScrollTo().performClick()
+        return rahul
     }
 }
 

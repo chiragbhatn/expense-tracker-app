@@ -63,11 +63,6 @@ jobs:
           path: app/build/reports/tests/
           if-no-files-found: ignore
 
-      - uses: actions/upload-artifact@v4
-        with:
-          name: room-schema
-          path: app/schemas/
-
   device-test:
     name: Walk through the APK on an emulator
     needs: build

@@ -108,8 +108,9 @@ runs on every push:
    Compose UI tests of the full flows, all on Robolectric.
 2. Builds the signed release APK.
 3. Installs that APK on an Android emulator, records a Swiggy payment for
-   Rahul, and checks the amounts on screen. Screenshots are kept as the
-   `device-screenshots` artifact.
+   Rahul, a repayment from him and a new cashback rule, and checks the amounts
+   on screen. Screenshots are kept as the `device-screenshots` artifact of the
+   workflow run.
 4. On the default branch, replaces the `latest` release with the new APK.
 
 To build locally you need JDK 17 and the Android SDK:
