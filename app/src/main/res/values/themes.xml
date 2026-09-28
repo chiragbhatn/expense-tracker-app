@@ -1,0 +1,6 @@
+<resources>
+    <!-- Window theme only; the app is drawn with Compose Material 3. -->
+    <style name="Theme.ExpenseTracker" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@color/window_background</item>
+    </style>
+</resources>
