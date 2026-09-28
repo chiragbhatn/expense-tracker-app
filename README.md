@@ -105,13 +105,14 @@ GitHub Actions ([`.github/workflows/android.yml`](.github/workflows/android.yml)
 runs on every push:
 
 1. Unit tests (money maths, cashback rules, udhaar), Room repository tests and
-   Compose UI tests of the full flows, all on Robolectric.
+   Compose UI tests of the main flows, all on Robolectric.
 2. Builds the signed release APK.
 3. Installs that APK on an Android emulator, records a Swiggy payment for
    Rahul, a repayment from him and a new cashback rule, and checks the amounts
    on screen. Screenshots are kept as the `device-screenshots` artifact of the
    workflow run.
-4. On the default branch, replaces the `latest` release with the new APK.
+4. On the default branch, once the walkthrough passes, replaces the `latest`
+   release with the new APK.
 
 To build locally you need JDK 17 and the Android SDK:
 
