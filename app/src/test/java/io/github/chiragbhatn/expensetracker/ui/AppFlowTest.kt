@@ -5,9 +5,9 @@ import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assertIsOff
-import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.isOn
 import androidx.compose.ui.test.junit4.ComposeTestRule
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -39,6 +39,9 @@ import java.time.LocalDate
  * blinks its cursor forever and Compose never goes idle. These tests therefore
  * avoid dialogs with text fields (people are added through the repository);
  * the emulator walkthrough in scripts/device_smoke_test.py covers those dialogs.
+ *
+ * Saving goes through Room on a background thread, which Compose's idle
+ * synchronisation does not wait for, so results are awaited with waitUntil.
  */
 @RunWith(AndroidJUnit4::class)
 @Config(qualifiers = "w411dp-h914dp-xxhdpi")
@@ -103,7 +106,7 @@ class AppFlowTest {
     fun switchingOnARuleAppliesItsCashback() {
         compose.onNodeWithTag(TestTags.navTab(Routes.RULES)).performClick()
         compose.onNodeWithTag(TestTags.ruleSwitch("Zomato")).assertIsOff().performClick()
-        compose.onNodeWithTag(TestTags.ruleSwitch("Zomato")).assertIsOn()
+        compose.waitUntilExists(hasTestTag(TestTags.ruleSwitch("Zomato")) and isOn())
 
         compose.onNodeWithTag(TestTags.navTab(Routes.DASHBOARD)).performClick()
         compose.onNodeWithTag(TestTags.ADD_EXPENSE).performClick()
@@ -145,6 +148,7 @@ class AppFlowTest {
         compose.onNodeWithText("Rahul's udhaar", useUnmergedTree = true).assertExists()
 
         compose.onNodeWithTag(TestTags.SAVE_EXPENSE).performScrollTo().performClick()
+        compose.waitUntilExists(hasTestTag(TestTags.navTab(Routes.UDHAAR)))
         return rahul
     }
 }
