@@ -1,3 +1,5 @@
+@file:OptIn(ExperimentalMaterial3Api::class)
+
 package io.github.chiragbhatn.expensetracker.ui.expenses
 
 import androidx.compose.foundation.layout.Row
@@ -24,7 +26,6 @@ import io.github.chiragbhatn.expensetracker.ui.components.listPadding
 import io.github.chiragbhatn.expensetracker.ui.dashboard.AddExpenseButton
 import io.github.chiragbhatn.expensetracker.ui.formatMonth
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ExpenseListScreen(
     bottomBar: @Composable () -> Unit,

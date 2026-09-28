@@ -1,3 +1,5 @@
+@file:OptIn(ExperimentalMaterial3Api::class)
+
 package io.github.chiragbhatn.expensetracker.ui.rules
 
 import androidx.compose.foundation.background
@@ -55,7 +57,6 @@ import io.github.chiragbhatn.expensetracker.ui.components.ConfirmDialog
 import io.github.chiragbhatn.expensetracker.ui.components.EmptyState
 import io.github.chiragbhatn.expensetracker.ui.components.listPadding
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CashbackRulesScreen(
     bottomBar: @Composable () -> Unit,

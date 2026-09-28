@@ -29,7 +29,13 @@ def screenshot(name):
     OUT.mkdir(parents=True, exist_ok=True)
     png = subprocess.run(["adb", "exec-out", "screencap", "-p"], check=True, capture_output=True).stdout
     (OUT / f"{name}.png").write_bytes(png)
-    print(f"screenshot {name}")
+    # Also log what is on screen, so the walkthrough can be reviewed from the job log.
+    print(f"--- screenshot {name} ---")
+    for node in ui_nodes():
+        text = node.get("text") or node.get("content-desc")
+        resource_id = node.get("resource-id")
+        if text or resource_id:
+            print(f"    {node.get('bounds'):<26} {resource_id or '':<26} {text!r}")
 
 
 def fail(message):
@@ -50,20 +56,30 @@ def ui_nodes():
         if xml.lstrip().startswith("<?xml"):
             return list(ET.fromstring(xml).iter("node"))
         time.sleep(1)
-    fail("could not read the screen with uiautomator")
+    print("warning: could not read the screen with uiautomator")
+    return []
 
 
 def label(node):
     return f"{node.get('text', '')} {node.get('content-desc', '')}"
 
 
-# Compose test tags are exposed as resource ids (testTagsAsResourceId).
+# Compose test tags are exposed as resource ids (testTagsAsResourceId). Dialogs are
+# separate windows without that setting, so they are matched by text or class.
 def by_id(resource_id):
     return lambda node: node.get("resource-id") == resource_id
 
 
 def with_text(text):
     return lambda node: text in label(node)
+
+
+def exact_text(text):
+    return lambda node: node.get("text") == text
+
+
+def text_field():
+    return lambda node: node.get("class") == "android.widget.EditText"
 
 
 def find(matches, timeout=10.0):
@@ -140,9 +156,9 @@ def main():
     type_text("Swiggy")
     hide_keyboard()
     tap(by_id("add_person"), "Add person chip")
-    tap(by_id("name_input"), "name field")
+    tap(text_field(), "name field")
     type_text("Rahul")
-    tap(by_id("dialog_confirm"), "Add button")
+    tap(exact_text("Add"), "Add button")
     hide_keyboard()
 
     expect_id_text("breakdown_original", "₹1,000")

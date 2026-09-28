@@ -1,3 +1,5 @@
+@file:OptIn(ExperimentalMaterial3Api::class)
+
 package io.github.chiragbhatn.expensetracker.ui.udhaar
 
 import androidx.compose.foundation.clickable
@@ -58,7 +60,6 @@ import io.github.chiragbhatn.expensetracker.ui.formatShort
 import io.github.chiragbhatn.expensetracker.ui.theme.LocalAmountColors
 import java.time.LocalDate
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PersonDetailScreen(
     onBack: () -> Unit,

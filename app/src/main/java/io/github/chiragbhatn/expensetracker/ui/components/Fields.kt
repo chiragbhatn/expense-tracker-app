@@ -1,3 +1,5 @@
+@file:OptIn(ExperimentalMaterial3Api::class)
+
 package io.github.chiragbhatn.expensetracker.ui.components
 
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -60,7 +62,6 @@ fun AmountField(
 }
 
 /** A read-only date field that opens a date picker when tapped. */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DateField(
     date: LocalDate,

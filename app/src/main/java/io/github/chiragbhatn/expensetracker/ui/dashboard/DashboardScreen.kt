@@ -1,3 +1,5 @@
+@file:OptIn(ExperimentalMaterial3Api::class)
+
 package io.github.chiragbhatn.expensetracker.ui.dashboard
 
 import androidx.compose.foundation.clickable
@@ -44,7 +46,6 @@ import io.github.chiragbhatn.expensetracker.ui.components.listPadding
 import io.github.chiragbhatn.expensetracker.ui.formatMonth
 import io.github.chiragbhatn.expensetracker.ui.theme.LocalAmountColors
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DashboardScreen(
     bottomBar: @Composable () -> Unit,

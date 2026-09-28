@@ -1,3 +1,5 @@
+@file:OptIn(ExperimentalMaterial3Api::class)
+
 package io.github.chiragbhatn.expensetracker.ui.expenses
 
 import androidx.compose.foundation.layout.Arrangement
@@ -56,7 +58,7 @@ import io.github.chiragbhatn.expensetracker.ui.components.ConfirmDialog
 import io.github.chiragbhatn.expensetracker.ui.components.DateField
 import io.github.chiragbhatn.expensetracker.ui.components.NameDialog
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun ExpenseEditScreen(
     onDone: () -> Unit,
@@ -218,7 +220,6 @@ private fun MerchantInput(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun PaymentMethodSelector(selected: PaymentMethod, onSelect: (PaymentMethod) -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
