@@ -79,6 +79,10 @@ def exact_text(text):
     return lambda node: node.get("text") == text
 
 
+def described_as(description):
+    return lambda node: node.get("content-desc") == description
+
+
 def text_field():
     return lambda node: node.get("class") == "android.widget.EditText"
 
@@ -124,13 +128,6 @@ def type_text(text):
     time.sleep(0.8)
 
 
-def hide_keyboard():
-    state = adb("shell", "dumpsys", "input_method")
-    if any(marker in state for marker in ("mInputShown=true", "mIsInputViewShown=true", "isInputViewShown=true")):
-        adb("shell", "input", "keyevent", "KEYCODE_BACK")
-        time.sleep(1)
-
-
 def expect_id_text(resource_id, text):
     node = find_scrolling(by_id(resource_id), resource_id)
     if node.get("text") != text:
@@ -144,6 +141,10 @@ def expect_text(text):
 
 
 def main():
+    # The emulator runs with a hardware keyboard; keep the on-screen keyboard
+    # hidden so it never covers the controls being tapped. `input text` sends
+    # key events, which Compose text fields accept without it.
+    adb("shell", "settings", "put", "secure", "show_ime_with_hard_keyboard", "0")
     adb("install", "-r", APK)
     adb("logcat", "-c", check=False)
     adb("shell", "am", "start", "-W", "-n", f"{PACKAGE}/.MainActivity")
@@ -157,13 +158,10 @@ def main():
     type_text("1000")
     tap(by_id("merchant_input"), "merchant field")
     type_text("Swiggy")
-    hide_keyboard()
     tap(by_id("add_person"), "Add person chip")
     tap(text_field(), "name field")
     type_text("Rahul")
-    hide_keyboard()
     tap(exact_text("Add"), "Add button")
-    hide_keyboard()
 
     expect_id_text("breakdown_original", "₹1,000")
     expect_id_text("breakdown_cashback", "−₹100")
@@ -191,12 +189,10 @@ def main():
     tap(exact_text("You got"), "You got button")
     tap(text_field(), "amount field")
     type_text("400")
-    hide_keyboard()
     tap(exact_text("Save"), "Save button")
     expect_id_text("person_balance", "₹600")
     screenshot("06-rahul")
-    adb("shell", "input", "keyevent", "KEYCODE_BACK")
-    time.sleep(1)
+    tap(described_as("Back"), "Back button")
 
     # Add a cashback rule through the dialog.
     tap(by_id("tab_rules"), "Cashback tab")
@@ -206,7 +202,6 @@ def main():
     type_text("Blinkit")
     tap(text_field(), "percentage field", index=1)
     type_text("5")
-    hide_keyboard()
     screenshot("07-add-rule")
     tap(exact_text("Save"), "Save button")
     expect_text("Blinkit")
