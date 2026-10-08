@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Files the app hands to other apps: exports to share, camera photos, safety backups. -->
+<paths>
+    <cache-path name="shared" path="shared/" />
+    <cache-path name="camera" path="camera/" />
+    <files-path name="backups" path="backups/" />
+</paths>

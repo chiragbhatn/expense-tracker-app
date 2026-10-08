@@ -16,6 +16,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.AlertDialog
@@ -50,24 +51,35 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import io.github.chiragbhatn.expensetracker.domain.CashbackRule
+import io.github.chiragbhatn.expensetracker.domain.CreditCard
 import io.github.chiragbhatn.expensetracker.domain.Percentage
 import io.github.chiragbhatn.expensetracker.ui.AppViewModelProvider
 import io.github.chiragbhatn.expensetracker.ui.TestTags
 import io.github.chiragbhatn.expensetracker.ui.components.ConfirmDialog
+import io.github.chiragbhatn.expensetracker.ui.components.DropdownField
 import io.github.chiragbhatn.expensetracker.ui.components.EmptyState
 import io.github.chiragbhatn.expensetracker.ui.components.listPadding
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 
 @Composable
 fun CashbackRulesScreen(
-    bottomBar: @Composable () -> Unit,
+    onBack: () -> Unit,
     viewModel: CashbackRulesViewModel = viewModel(factory = AppViewModelProvider.Factory),
 ) {
-    val rules by viewModel.rules.collectAsStateWithLifecycle()
+    val loadedData by viewModel.rules.collectAsStateWithLifecycle()
     var ruleToDelete by remember { mutableStateOf<CashbackRule?>(null) }
+    val cards = loadedData?.cards.orEmpty()
 
     Scaffold(
-        topBar = { TopAppBar(title = { Text("Cashback rules") }) },
-        bottomBar = bottomBar,
+        topBar = {
+            TopAppBar(
+                title = { Text("Cashback rules") },
+                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back") } },
+            )
+        },
         floatingActionButton = {
             ExtendedFloatingActionButton(
                 onClick = viewModel::startAdding,
@@ -79,13 +91,14 @@ fun CashbackRulesScreen(
     ) { padding ->
         LazyColumn(contentPadding = listPadding(padding)) {
             item { HowItWorksCard(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) }
-            val loaded = rules ?: return@LazyColumn
+            val loaded = loadedData?.rules ?: return@LazyColumn
             if (loaded.isEmpty()) {
                 item { EmptyState("No cashback rules", "Add a merchant where your card gives cashback.") }
             }
             items(loaded, key = { it.id }) { rule ->
                 RuleRow(
                     rule = rule,
+                    card = rule.cardId?.let { id -> cards.firstOrNull { it.id == id } },
                     onToggle = { viewModel.setEnabled(rule, it) },
                     onEdit = { viewModel.startEditing(rule) },
                     onDelete = { ruleToDelete = rule },
@@ -97,6 +110,7 @@ fun CashbackRulesScreen(
     viewModel.editor?.let { state ->
         RuleDialog(
             state = state,
+            cards = cards,
             onChange = viewModel::onEditorChange,
             onSave = viewModel::saveEditor,
             onDismiss = viewModel::dismissEditor,
@@ -126,8 +140,9 @@ private fun HowItWorksCard(modifier: Modifier = Modifier) {
             Text("How cashback works", style = MaterialTheme.typography.titleSmall)
             Text(
                 text = "Card payments at an enabled merchant get the cashback subtracted: " +
-                    "₹500 at 10% is ₹500 − ₹50 = ₹450 effective expense. " +
-                    "If you paid for someone, they still owe you the full ₹500.",
+                    "₹200 at 10% is ₹200 − ₹20 = ₹180 effective expense. " +
+                    "If the expense was for someone else, they owe you ₹180 too: cashback lowers their share as well. " +
+                    "A rule can apply to any card or only to one card.",
                 style = MaterialTheme.typography.bodySmall,
             )
         }
@@ -137,6 +152,7 @@ private fun HowItWorksCard(modifier: Modifier = Modifier) {
 @Composable
 private fun RuleRow(
     rule: CashbackRule,
+    card: CreditCard?,
     onToggle: (Boolean) -> Unit,
     onEdit: () -> Unit,
     onDelete: () -> Unit,
@@ -146,7 +162,18 @@ private fun RuleRow(
         leadingContent = { PercentageBadge(rule) },
         headlineContent = { Text(rule.merchant) },
         supportingContent = {
-            Text(if (rule.enabled) "${rule.percentage.format()} cashback · On" else "${rule.percentage.format()} cashback · Off")
+            val scope = if (rule.cardId == null) "any card" else card?.displayName ?: "a deleted card"
+            val state = if (rule.enabled) "On" else "Off"
+            Column {
+                Text("${rule.percentage.format()} cashback on $scope · $state")
+                if (rule.updatedAtMillis > 0) {
+                    Text(
+                        "Added ${ruleDate(rule.createdAtMillis)} · updated ${ruleDate(rule.updatedAtMillis)}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
         },
         trailingContent = {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -183,9 +210,14 @@ private fun PercentageBadge(rule: CashbackRule) {
     }
 }
 
+private val ruleDateFormat = DateTimeFormatter.ofPattern("d MMM yyyy", Locale.ENGLISH)
+
+private fun ruleDate(millis: Long): String = Instant.ofEpochMilli(millis).atZone(ZoneId.systemDefault()).toLocalDate().format(ruleDateFormat)
+
 @Composable
 private fun RuleDialog(
     state: RuleEditorState,
+    cards: List<CreditCard>,
     onChange: (RuleEditorState) -> Unit,
     onSave: () -> Unit,
     onDismiss: () -> Unit,
@@ -219,6 +251,15 @@ private fun RuleDialog(
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal, imeAction = ImeAction.Done),
                 )
+                if (cards.isNotEmpty()) {
+                    DropdownField(
+                        label = "Applies to",
+                        selected = cards.firstOrNull { it.id == state.cardId },
+                        options = listOf(null) + cards,
+                        optionLabel = { it?.displayName ?: "Any card" },
+                        onSelect = { onChange(state.copy(cardId = it?.id)) },
+                    )
+                }
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text("Enabled", Modifier.weight(1f))
                     Switch(checked = state.enabled, onCheckedChange = { onChange(state.copy(enabled = it)) })

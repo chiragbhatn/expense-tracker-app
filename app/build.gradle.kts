@@ -21,7 +21,7 @@ android {
         minSdk = 26
         targetSdk = 35
         versionCode = buildNumber
-        versionName = "1.0.$buildNumber"
+        versionName = "2.0.$buildNumber"
     }
 
     signingConfigs {
@@ -66,6 +66,11 @@ android {
     testOptions {
         unitTests.isIncludeAndroidResources = true
     }
+
+    sourceSets {
+        // The exported Room schemas, so migration tests can build each database version.
+        getByName("debug").assets.srcDir("$projectDir/schemas")
+    }
 }
 
 kotlin {
@@ -77,6 +82,9 @@ kotlin {
 ksp {
     arg("room.schemaLocation", "$projectDir/schemas")
 }
+
+// Migration tests read the exported Room schemas as debug assets, so export them first.
+tasks.matching { it.name == "mergeDebugAssets" }.configureEach { dependsOn("kspDebugKotlin") }
 
 tasks.withType<Test>().configureEach {
     // Robolectric UI tests need more than Gradle's 512 MB default.
@@ -100,6 +108,11 @@ dependencies {
     implementation(libs.androidx.room.runtime)
     implementation(libs.androidx.room.ktx)
     ksp(libs.androidx.room.compiler)
+    implementation(libs.androidx.datastore.preferences)
+    implementation(libs.androidx.work.runtime)
+    implementation(libs.androidx.biometric)
+    implementation(libs.androidx.fragment)
+    implementation(libs.mlkit.text.recognition)
 
     debugImplementation(libs.androidx.compose.ui.test.manifest)
 
@@ -107,6 +120,7 @@ dependencies {
     testImplementation(libs.androidx.test.core)
     testImplementation(libs.androidx.test.junit)
     testImplementation(libs.robolectric)
+    testImplementation(libs.androidx.room.testing)
     testImplementation(platform(libs.androidx.compose.bom))
     testImplementation(libs.androidx.compose.ui.test.junit4)
 }

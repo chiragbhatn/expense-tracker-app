@@ -11,41 +11,42 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
+import io.github.chiragbhatn.expensetracker.domain.CashbackBreakdown
 import io.github.chiragbhatn.expensetracker.domain.CashbackEligibility
 import io.github.chiragbhatn.expensetracker.domain.CashbackQuote
-import io.github.chiragbhatn.expensetracker.domain.LedgerPosting
-import io.github.chiragbhatn.expensetracker.domain.Person
+import io.github.chiragbhatn.expensetracker.domain.Money
 import io.github.chiragbhatn.expensetracker.domain.cleanName
 import io.github.chiragbhatn.expensetracker.ui.TestTags
 import io.github.chiragbhatn.expensetracker.ui.theme.LocalAmountColors
 
+/** What someone owes for an expense, for display. */
+data class ShareLine(val name: String, val amount: Money)
+
 /**
- * Shows both sides of a transaction as the user types:
+ * Shows the transaction as the user types:
  *
- *     Original amount      ₹1,000
- *     Cashback (10%)        −₹100
- *     Effective expense      ₹900
- *     Rahul's udhaar       ₹1,000
+ *     Original amount      ₹200
+ *     Cashback (10%)       −₹20
+ *     Effective expense     ₹180
+ *     Rahul owes you        ₹180
  */
 @Composable
 fun CashbackBreakdownCard(
-    posting: LedgerPosting,
-    quote: CashbackQuote,
+    amounts: CashbackBreakdown,
+    quote: CashbackQuote?,
     merchant: String,
-    paidFor: Person?,
+    shares: List<ShareLine>,
+    myShare: Money?,
     onUseCurrentRule: () -> Unit,
     modifier: Modifier = Modifier,
+    customPercentage: Boolean = false,
 ) {
-    val amounts = posting.expense
     val secondaryText = MaterialTheme.colorScheme.onSurfaceVariant
     Card(modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            AmountLine(
-                label = "Original amount",
-                amount = amounts.originalAmount.format(),
-                amountTag = TestTags.BREAKDOWN_ORIGINAL,
-            )
+            AmountLine(label = "Original amount", amount = amounts.originalAmount.format(), amountTag = TestTags.BREAKDOWN_ORIGINAL)
             if (!amounts.cashbackPercentage.isZero) {
                 AmountLine(
                     label = "Cashback (${amounts.cashbackPercentage.format()})",
@@ -62,36 +63,42 @@ fun CashbackBreakdownCard(
                 emphasized = true,
             )
 
-            if (quote.percentage != quote.rulePercentage) {
-                val current = if (quote.rulePercentage.isZero) "none" else quote.rulePercentage.format()
-                Text(
-                    text = "Saved with ${quote.percentage.format()} cashback. The current rules give $current.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = secondaryText,
-                )
-                TextButton(onClick = onUseCurrentRule) {
-                    Text(if (quote.rulePercentage.isZero) "Remove cashback" else "Use ${quote.rulePercentage.format()}")
+            when {
+                customPercentage -> Text("Cashback entered by you for this expense.", style = MaterialTheme.typography.bodySmall, color = secondaryText)
+                quote != null && quote.percentage != quote.rulePercentage -> {
+                    val current = if (quote.rulePercentage.isZero) "none" else quote.rulePercentage.format()
+                    Text(
+                        text = "Saved with ${quote.percentage.format()} cashback. The current rules give $current.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = secondaryText,
+                    )
+                    TextButton(onClick = onUseCurrentRule) {
+                        Text(if (quote.rulePercentage.isZero) "Remove cashback" else "Use ${quote.rulePercentage.format()}")
+                    }
                 }
-            } else {
-                cashbackNote(quote.eligibility, merchant)?.let {
+                quote != null -> cashbackNote(quote.eligibility, merchant)?.let {
                     Text(it, style = MaterialTheme.typography.bodySmall, color = secondaryText)
                 }
             }
 
-            val owed = posting.udhaarOwed
-            if (paidFor != null && owed != null) {
+            if (shares.isNotEmpty()) {
                 HorizontalDivider()
-                AmountLine(
-                    label = "${paidFor.name}'s udhaar",
-                    amount = owed.format(),
-                    amountTag = TestTags.BREAKDOWN_UDHAAR,
-                    emphasized = true,
-                )
-                Text(
-                    text = "${paidFor.name} owes you the full ${owed.format()}. The cashback stays with you.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = secondaryText,
-                )
+                shares.forEach { share ->
+                    AmountLine(
+                        label = "${share.name} owes you",
+                        amount = share.amount.format(),
+                        modifier = Modifier.testTag(TestTags.shareLine(share.name)),
+                        amountTag = TestTags.shareAmount(share.name),
+                    )
+                }
+                if (myShare != null && myShare.isPositive) AmountLine(label = "Your share", amount = myShare.format())
+                if (amounts.hasCashback) {
+                    Text(
+                        text = "Cashback lowers everyone's share: shares add up to the effective ${amounts.effectiveAmount.format()}.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = secondaryText,
+                    )
+                }
             }
         }
     }
@@ -103,6 +110,8 @@ private fun cashbackNote(eligibility: CashbackEligibility, merchant: String): St
         "${eligibility.rule.merchant} cashback (${eligibility.rule.percentage.format()}) is turned off in Cashback rules."
     is CashbackEligibility.NotPaidByCard ->
         "${eligibility.rule.merchant} cashback applies to card payments only."
+    is CashbackEligibility.OtherCard ->
+        "${eligibility.rule.merchant} cashback applies to a different card."
     CashbackEligibility.NoRule ->
         if (merchant.isBlank()) null else "No cashback rule for ${cleanName(merchant)}."
 }

@@ -4,142 +4,141 @@ package io.github.chiragbhatn.expensetracker.ui.udhaar
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.PersonAdd
-import androidx.compose.material3.ElevatedCard
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ExtendedFloatingActionButton
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
+import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.lifecycle.viewmodel.compose.viewModel
-import io.github.chiragbhatn.expensetracker.domain.PersonBalance
-import io.github.chiragbhatn.expensetracker.ui.AppViewModelProvider
-import io.github.chiragbhatn.expensetracker.ui.components.AmountLine
+import io.github.chiragbhatn.expensetracker.domain.BalanceState
+import io.github.chiragbhatn.expensetracker.domain.moneyToGive
+import io.github.chiragbhatn.expensetracker.domain.moneyToReceive
+import io.github.chiragbhatn.expensetracker.domain.overdue
+import io.github.chiragbhatn.expensetracker.ui.LocalAppContainer
+import io.github.chiragbhatn.expensetracker.ui.TestTags
+import io.github.chiragbhatn.expensetracker.ui.appData
+import io.github.chiragbhatn.expensetracker.ui.appSettings
+import io.github.chiragbhatn.expensetracker.ui.components.AddActions
+import io.github.chiragbhatn.expensetracker.ui.components.AddMenuFab
 import io.github.chiragbhatn.expensetracker.ui.components.EmptyState
+import io.github.chiragbhatn.expensetracker.ui.components.InfoCard
 import io.github.chiragbhatn.expensetracker.ui.components.InitialAvatar
-import io.github.chiragbhatn.expensetracker.ui.components.NameDialog
+import io.github.chiragbhatn.expensetracker.ui.components.Loading
+import io.github.chiragbhatn.expensetracker.ui.components.Stat
+import io.github.chiragbhatn.expensetracker.ui.components.balanceColor
 import io.github.chiragbhatn.expensetracker.ui.components.listPadding
+import io.github.chiragbhatn.expensetracker.ui.components.shortBalance
+import io.github.chiragbhatn.expensetracker.ui.formatShort
 import io.github.chiragbhatn.expensetracker.ui.theme.LocalAmountColors
+import io.github.chiragbhatn.expensetracker.ui.today
+
+private enum class PeopleFilter(val label: String) { ALL("All"), OWE_YOU("Owe you"), YOU_OWE("You owe / credit"), SETTLED("Settled") }
 
 @Composable
 fun UdhaarScreen(
     bottomBar: @Composable () -> Unit,
+    addActions: AddActions,
+    onAddPerson: () -> Unit,
     onOpenPerson: (Long) -> Unit,
-    viewModel: UdhaarViewModel = viewModel(factory = AppViewModelProvider.Factory),
+    onSearch: () -> Unit,
 ) {
-    val state by viewModel.uiState.collectAsStateWithLifecycle()
-    var addingPerson by rememberSaveable { mutableStateOf(false) }
-    LaunchedEffect(viewModel) { viewModel.addedPerson.collect { onOpenPerson(it) } }
+    val data = appData()
+    val settings = appSettings()
+    val today = today()
+    val container = LocalAppContainer.current
+    var filter by rememberSaveable { mutableStateOf(PeopleFilter.ALL) }
+    val colors = LocalAmountColors.current
 
     Scaffold(
-        topBar = { TopAppBar(title = { Text("Udhaar") }) },
-        bottomBar = bottomBar,
-        floatingActionButton = {
-            ExtendedFloatingActionButton(
-                onClick = { addingPerson = true },
-                icon = { Icon(Icons.Filled.PersonAdd, contentDescription = null) },
-                text = { Text("Add person") },
+        topBar = {
+            TopAppBar(
+                title = { Text("Udhaar") },
+                actions = {
+                    IconButton(onClick = onSearch) { Icon(Icons.Filled.Search, contentDescription = "Search") }
+                    IconButton(onClick = onAddPerson, modifier = Modifier.testTag(TestTags.ADD_PERSON)) {
+                        Icon(Icons.Filled.PersonAdd, contentDescription = "Add person")
+                    }
+                },
             )
         },
+        bottomBar = bottomBar,
+        floatingActionButton = { AddMenuFab(addActions) },
     ) { padding ->
-        LazyColumn(contentPadding = listPadding(padding)) {
-            val loaded = state ?: return@LazyColumn
-            item { TotalsCard(loaded, Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) }
-            if (loaded.balances.isEmpty()) {
-                item {
-                    EmptyState(
-                        title = "No udhaar yet",
-                        message = "When you pay for someone, choose them under “Paid for” and they will show up here.",
-                    )
+        if (data == null) {
+            Loading(Modifier.padding(padding))
+            return@Scaffold
+        }
+        val balances = data.balances
+        val overdueIds = balances.overdue(today, settings.reminders.udhaarAfterDays.coerceAtLeast(1).toLong()).map { it.person.id }.toSet()
+        val shown = balances.filter { balance ->
+            when (filter) {
+                PeopleFilter.ALL -> true
+                PeopleFilter.OWE_YOU -> balance.summary.state == BalanceState.OWES_YOU
+                PeopleFilter.YOU_OWE -> balance.summary.state == BalanceState.YOU_OWE || balance.summary.state == BalanceState.HAS_CREDIT
+                PeopleFilter.SETTLED -> balance.summary.state == BalanceState.SETTLED
+            }
+        }
+        LazyColumn(Modifier.fillMaxSize(), contentPadding = listPadding(padding)) {
+            item {
+                InfoCard(title = null) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Stat("To receive", balances.moneyToReceive().format(), Modifier.weight(1f), color = colors.positive, tag = TestTags.DASHBOARD_TO_RECEIVE)
+                        Stat("To pay", balances.moneyToGive().format(), Modifier.weight(1f), color = colors.negative)
+                        Stat("Overdue", overdueIds.size.toString(), Modifier.weight(1f))
+                    }
                 }
             }
-            items(loaded.balances, key = { it.person.id }) { balance ->
-                PersonBalanceRow(balance, onClick = { onOpenPerson(balance.person.id) })
+            item {
+                Row(Modifier.padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    PeopleFilter.entries.forEach { option ->
+                        FilterChip(selected = filter == option, onClick = { filter = option }, label = { Text(option.label) })
+                    }
+                }
+            }
+            if (balances.isEmpty()) {
+                item { EmptyState("No people yet", "Add someone to track what they owe you, or split an expense with them.") }
+            }
+            items(shown, key = { it.person.id }) { balance ->
+                val person = balance.person
+                ListItem(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { onOpenPerson(person.id) }
+                        .testTag(TestTags.person(person.name)),
+                    colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                    leadingContent = { InitialAvatar(person.name, photo = person.photoPath?.let(container.files::photo)) },
+                    headlineContent = { Text(person.name) },
+                    supportingContent = {
+                        val last = balance.lastActivity?.let { "Last activity ${it.formatShort()}" } ?: "No transactions yet"
+                        Text(if (person.id in overdueIds) "Overdue · $last" else last, color = if (person.id in overdueIds) colors.negative else Color.Unspecified)
+                    },
+                    trailingContent = {
+                        Text(shortBalance(balance.summary), color = balanceColor(balance.summary), style = MaterialTheme.typography.titleSmall)
+                    },
+                )
             }
         }
     }
-
-    if (addingPerson) {
-        NameDialog(
-            title = "Add person",
-            confirmLabel = "Add",
-            onConfirm = { name ->
-                viewModel.addPerson(name)
-                addingPerson = false
-            },
-            onDismiss = { addingPerson = false },
-        )
-    }
-}
-
-@Composable
-private fun TotalsCard(state: UdhaarUiState, modifier: Modifier = Modifier) {
-    val colors = LocalAmountColors.current
-    ElevatedCard(modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            AmountLine(
-                label = "Money to receive",
-                amount = state.moneyToReceive.format(),
-                color = colors.positive,
-                emphasized = true,
-            )
-            AmountLine(label = "You owe others", amount = state.moneyToGive.format(), color = colors.negative)
-            Text(
-                text = "When you pay for someone by card they owe you the full amount; your card's cashback stays with you.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-    }
-}
-
-@Composable
-private fun PersonBalanceRow(balance: PersonBalance, onClick: () -> Unit) {
-    val colors = LocalAmountColors.current
-    val amount = balance.balance
-    ListItem(
-        modifier = Modifier.clickable(onClick = onClick),
-        leadingContent = { InitialAvatar(balance.person.name) },
-        headlineContent = { Text(balance.person.name) },
-        supportingContent = {
-            Text(
-                when {
-                    amount.isPositive -> "Owes you"
-                    amount.isNegative -> "You owe"
-                    else -> "Settled up"
-                },
-            )
-        },
-        trailingContent = {
-            Text(
-                text = amount.abs().format(),
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold,
-                color = when {
-                    amount.isPositive -> colors.positive
-                    amount.isNegative -> colors.negative
-                    else -> MaterialTheme.colorScheme.onSurfaceVariant
-                },
-            )
-        },
-    )
 }

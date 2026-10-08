@@ -1,10 +1,18 @@
 package io.github.chiragbhatn.expensetracker.ui.components
 
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -14,12 +22,15 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.unit.dp
 import io.github.chiragbhatn.expensetracker.ui.TestTags
 
 @Composable
@@ -43,7 +54,7 @@ fun ConfirmDialog(
     )
 }
 
-/** Asks for a person's name, e.g. when adding someone you paid for. */
+/** Asks for a name, e.g. when adding someone to an expense. */
 @Composable
 fun NameDialog(
     title: String,
@@ -52,6 +63,7 @@ fun NameDialog(
     onDismiss: () -> Unit,
     initialName: String = "",
     errorText: String? = null,
+    label: String = "Name",
 ) {
     var name by rememberSaveable { mutableStateOf(initialName) }
     AlertDialog(
@@ -66,14 +78,11 @@ fun NameDialog(
                     .fillMaxWidth()
                     .focusRequester(focusRequester)
                     .testTag(TestTags.NAME_INPUT),
-                label = { Text("Name") },
+                label = { Text(label) },
                 singleLine = true,
                 isError = errorText != null,
                 supportingText = errorText?.let { { Text(it) } },
-                keyboardOptions = KeyboardOptions(
-                    capitalization = KeyboardCapitalization.Words,
-                    imeAction = ImeAction.Done,
-                ),
+                keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words, imeAction = ImeAction.Done),
                 keyboardActions = KeyboardActions(onDone = { if (name.isNotBlank()) onConfirm(name) }),
             )
             LaunchedEffect(focusRequester) { focusRequester.requestFocus() }
@@ -86,5 +95,49 @@ fun NameDialog(
             ) { Text(confirmLabel) }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+    )
+}
+
+/** Picks one option from a list of radio buttons. */
+@Composable
+fun <T> ChoiceDialog(
+    title: String,
+    options: List<T>,
+    selected: T,
+    label: (T) -> String,
+    onSelect: (T) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title) },
+        text = {
+            Column(Modifier.verticalScroll(rememberScrollState())) {
+                options.forEach { option ->
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .selectable(selected = option == selected, role = Role.RadioButton) { onSelect(option) }
+                            .padding(vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        RadioButton(selected = option == selected, onClick = null)
+                        Text(label(option), modifier = Modifier.padding(start = 12.dp))
+                    }
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = onDismiss) { Text("Close") } },
+    )
+}
+
+/** A dialog that just shows a message. */
+@Composable
+fun MessageDialog(title: String, message: String, onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title) },
+        text = { Text(message, modifier = Modifier.clickable(enabled = false) {}) },
+        confirmButton = { TextButton(onClick = onDismiss, modifier = Modifier.testTag(TestTags.DIALOG_CONFIRM)) { Text("OK") } },
     )
 }

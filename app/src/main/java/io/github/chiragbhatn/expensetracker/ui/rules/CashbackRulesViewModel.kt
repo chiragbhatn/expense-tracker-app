@@ -5,13 +5,15 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import io.github.chiragbhatn.expensetracker.data.CashbackRuleRepository
+import io.github.chiragbhatn.expensetracker.AppContainer
 import io.github.chiragbhatn.expensetracker.data.SaveRuleResult
 import io.github.chiragbhatn.expensetracker.domain.CashbackRule
+import io.github.chiragbhatn.expensetracker.domain.CreditCard
 import io.github.chiragbhatn.expensetracker.domain.Percentage
 import io.github.chiragbhatn.expensetracker.domain.cleanName
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -21,12 +23,19 @@ data class RuleEditorState(
     val merchant: String = "",
     val percentage: String = "",
     val enabled: Boolean = true,
+    /** Limits the rule to one card; null for any card. */
+    val cardId: Long? = null,
     val error: String? = null,
 )
 
-class CashbackRulesViewModel(private val repository: CashbackRuleRepository) : ViewModel() {
+data class RulesData(val rules: List<CashbackRule>, val cards: List<CreditCard>)
+
+class CashbackRulesViewModel(container: AppContainer) : ViewModel() {
+    private val repository = container.cashbackRules
+
     /** Null until loaded. */
-    val rules: StateFlow<List<CashbackRule>?> = repository.observeAll()
+    val rules: StateFlow<RulesData?> = container.data
+        .map { data -> data?.let { RulesData(it.rules, it.cards) } }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     /** The open add/edit dialog, as snapshot state so its text fields update synchronously. */
@@ -43,6 +52,7 @@ class CashbackRulesViewModel(private val repository: CashbackRuleRepository) : V
             merchant = rule.merchant,
             percentage = rule.percentage.toInputString(),
             enabled = rule.enabled,
+            cardId = rule.cardId,
         )
     }
 
@@ -62,10 +72,10 @@ class CashbackRulesViewModel(private val repository: CashbackRuleRepository) : V
             merchant.isEmpty() -> showError("Enter a merchant name")
             percentage == null -> showError("Enter a cashback percentage above 0 and up to 100")
             else -> viewModelScope.launch {
-                when (val result = repository.save(current.ruleId, merchant, percentage, current.enabled)) {
+                when (val result = repository.save(current.ruleId, merchant, percentage, current.enabled, current.cardId)) {
                     SaveRuleResult.Saved -> editor = null
                     is SaveRuleResult.DuplicateMerchant ->
-                        showError("A rule for ${result.existingMerchant} already exists")
+                        showError("A rule for ${result.existingMerchant} on ${if (current.cardId == null) "any card" else "this card"} already exists")
                 }
             }
         }

@@ -4,15 +4,24 @@ package io.github.chiragbhatn.expensetracker.ui.components
 
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.PressInteraction
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.LocalTextStyle
+import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -25,16 +34,21 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.unit.dp
+import io.github.chiragbhatn.expensetracker.domain.Currency
 import io.github.chiragbhatn.expensetracker.domain.Money
+import io.github.chiragbhatn.expensetracker.domain.Percentage
 import io.github.chiragbhatn.expensetracker.ui.formatLong
 import io.github.chiragbhatn.expensetracker.ui.pickerMillisToDate
 import io.github.chiragbhatn.expensetracker.ui.toPickerMillis
 import java.time.LocalDate
 
-/** A rupee amount field that only accepts digits with up to two decimals. */
+/** An amount field that only accepts digits with up to two decimals. */
 @Composable
 fun AmountField(
     value: String,
@@ -42,7 +56,9 @@ fun AmountField(
     modifier: Modifier = Modifier,
     label: String = "Amount",
     errorText: String? = null,
+    supportingText: String? = null,
     textStyle: TextStyle = LocalTextStyle.current,
+    imeAction: ImeAction = ImeAction.Next,
 ) {
     OutlinedTextField(
         value = value,
@@ -52,12 +68,80 @@ fun AmountField(
         },
         modifier = modifier.fillMaxWidth(),
         label = { Text(label) },
-        prefix = { Text("₹") },
+        prefix = { Text(Currency.display.symbol) },
         textStyle = textStyle,
+        singleLine = true,
+        isError = errorText != null,
+        supportingText = (errorText ?: supportingText)?.let { { Text(it) } },
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal, imeAction = imeAction),
+    )
+}
+
+/** A percentage field (0–100, up to two decimals). */
+@Composable
+fun PercentField(value: String, onValueChange: (String) -> Unit, modifier: Modifier = Modifier, label: String = "Cashback", errorText: String? = null) {
+    OutlinedTextField(
+        value = value,
+        onValueChange = { if (Percentage.isPartialInput(it)) onValueChange(it) },
+        modifier = modifier.fillMaxWidth(),
+        label = { Text(label) },
+        suffix = { Text("%") },
         singleLine = true,
         isError = errorText != null,
         supportingText = errorText?.let { { Text(it) } },
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal, imeAction = ImeAction.Next),
+    )
+}
+
+/** A whole-number field limited to [maxDigits] digits, e.g. a day of the month. */
+@Composable
+fun NumberField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    label: String,
+    modifier: Modifier = Modifier,
+    maxDigits: Int = 3,
+    errorText: String? = null,
+    supportingText: String? = null,
+) {
+    OutlinedTextField(
+        value = value,
+        onValueChange = { text -> if (text.length <= maxDigits && text.all(Char::isDigit)) onValueChange(text) },
+        modifier = modifier.fillMaxWidth(),
+        label = { Text(label) },
+        singleLine = true,
+        isError = errorText != null,
+        supportingText = (errorText ?: supportingText)?.let { { Text(it) } },
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Next),
+    )
+}
+
+/** A plain text field with sensible defaults for names and notes. */
+@Composable
+fun TextInput(
+    value: String,
+    onValueChange: (String) -> Unit,
+    label: String,
+    modifier: Modifier = Modifier,
+    singleLine: Boolean = true,
+    capitalization: KeyboardCapitalization = KeyboardCapitalization.Sentences,
+    keyboardType: KeyboardType = KeyboardType.Text,
+    errorText: String? = null,
+    supportingText: String? = null,
+    tag: String? = null,
+) {
+    OutlinedTextField(
+        value = value,
+        onValueChange = onValueChange,
+        modifier = modifier
+            .fillMaxWidth()
+            .then(if (tag != null) Modifier.testTag(tag) else Modifier),
+        label = { Text(label) },
+        singleLine = singleLine,
+        minLines = if (singleLine) 1 else 2,
+        isError = errorText != null,
+        supportingText = (errorText ?: supportingText)?.let { { Text(it) } },
+        keyboardOptions = KeyboardOptions(capitalization = capitalization, keyboardType = keyboardType, imeAction = if (singleLine) ImeAction.Next else ImeAction.Default),
     )
 }
 
@@ -69,6 +153,23 @@ fun DateField(
     modifier: Modifier = Modifier,
     label: String = "Date",
 ) {
+    DatePickerField(date, { it?.let(onDateChange) }, modifier, label, clearable = false)
+}
+
+/** A date field that may be left empty, e.g. an optional end date. */
+@Composable
+fun OptionalDateField(date: LocalDate?, onDateChange: (LocalDate?) -> Unit, modifier: Modifier = Modifier, label: String) {
+    DatePickerField(date, onDateChange, modifier, label, clearable = true)
+}
+
+@Composable
+private fun DatePickerField(
+    date: LocalDate?,
+    onDateChange: (LocalDate?) -> Unit,
+    modifier: Modifier,
+    label: String,
+    clearable: Boolean,
+) {
     var showPicker by rememberSaveable { mutableStateOf(false) }
     val interactionSource = remember { MutableInteractionSource() }
     LaunchedEffect(interactionSource) {
@@ -76,18 +177,24 @@ fun DateField(
     }
 
     OutlinedTextField(
-        value = date.formatLong(),
+        value = date?.formatLong() ?: "Not set",
         onValueChange = {},
         modifier = modifier.fillMaxWidth(),
         readOnly = true,
         label = { Text(label) },
-        trailingIcon = { Icon(Icons.Filled.DateRange, contentDescription = null) },
+        trailingIcon = {
+            if (clearable && date != null) {
+                IconButton(onClick = { onDateChange(null) }) { Icon(Icons.Filled.Clear, contentDescription = "Clear $label") }
+            } else {
+                Icon(Icons.Filled.DateRange, contentDescription = null)
+            }
+        },
         singleLine = true,
         interactionSource = interactionSource,
     )
 
     if (showPicker) {
-        val pickerState = rememberDatePickerState(initialSelectedDateMillis = date.toPickerMillis())
+        val pickerState = rememberDatePickerState(initialSelectedDateMillis = (date ?: LocalDate.now()).toPickerMillis())
         DatePickerDialog(
             onDismissRequest = { showPicker = false },
             confirmButton = {
@@ -101,6 +208,66 @@ fun DateField(
             dismissButton = { TextButton(onClick = { showPicker = false }) { Text("Cancel") } },
         ) {
             DatePicker(state = pickerState)
+        }
+    }
+}
+
+/** A field that picks one of [options] from a drop-down list. */
+@Composable
+fun <T> DropdownField(
+    label: String,
+    selected: T,
+    options: List<T>,
+    optionLabel: (T) -> String,
+    onSelect: (T) -> Unit,
+    modifier: Modifier = Modifier,
+    tag: String? = null,
+) {
+    var expanded by remember { mutableStateOf(false) }
+    ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = it }, modifier = modifier.fillMaxWidth()) {
+        OutlinedTextField(
+            value = optionLabel(selected),
+            onValueChange = {},
+            readOnly = true,
+            label = { Text(label) },
+            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+            modifier = Modifier
+                .fillMaxWidth()
+                .menuAnchor(MenuAnchorType.PrimaryNotEditable)
+                .then(if (tag != null) Modifier.testTag(tag) else Modifier),
+        )
+        ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            options.forEach { option ->
+                DropdownMenuItem(
+                    text = { Text(optionLabel(option)) },
+                    onClick = {
+                        onSelect(option)
+                        expanded = false
+                    },
+                )
+            }
+        }
+    }
+}
+
+/** A row of single-choice chips. */
+@Composable
+fun <T> ChoiceChips(
+    options: List<T>,
+    selected: T,
+    label: (T) -> String,
+    onSelect: (T) -> Unit,
+    modifier: Modifier = Modifier,
+    tag: (T) -> String? = { null },
+) {
+    Row(modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        options.forEach { option ->
+            FilterChip(
+                selected = option == selected,
+                onClick = { onSelect(option) },
+                label = { Text(label(option)) },
+                modifier = tag(option)?.let { Modifier.testTag(it) } ?: Modifier,
+            )
         }
     }
 }
