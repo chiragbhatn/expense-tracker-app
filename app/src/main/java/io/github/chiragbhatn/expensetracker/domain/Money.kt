@@ -3,8 +3,9 @@ package io.github.chiragbhatn.expensetracker.domain
 import kotlin.math.absoluteValue
 
 /**
- * An amount in Indian Rupees, held as whole paise so that sums and cashback
- * calculations are exact (no floating-point rounding).
+ * An amount of money held as whole paise (hundredths of the currency unit) so
+ * that sums, splits and cashback calculations are exact. Floating point is
+ * never used for amounts.
  */
 @JvmInline
 value class Money(val paise: Long) : Comparable<Money> {
@@ -23,17 +24,17 @@ value class Money(val paise: Long) : Comparable<Money> {
 
     fun abs() = Money(paise.absoluteValue)
 
-    /** "₹1,00,000", "₹33.30", "−₹50": Indian digit grouping, paise only when non-zero. */
-    fun format(): String {
+    /**
+     * "₹1,00,000", "₹33.30", "−₹50": the currency's symbol and digit grouping,
+     * with paise only when non-zero.
+     */
+    fun format(currency: Currency = Currency.display): String {
         val sign = if (paise < 0) "−" else ""
         val abs = paise.absoluteValue
-        val rupees = groupIndian(abs / 100)
+        val whole = if (currency.indianGrouping) groupIndian(abs / 100) else groupThousands(abs / 100)
         val fraction = abs % 100
-        return if (fraction == 0L) {
-            "$sign₹$rupees"
-        } else {
-            "$sign₹$rupees.${fraction.toString().padStart(2, '0')}"
-        }
+        val number = if (fraction == 0L) whole else "$whole.${fraction.toString().padStart(2, '0')}"
+        return "$sign${currency.symbol}$number"
     }
 
     /** Plain digits for pre-filling an input field: "1000", "33.30". */
@@ -43,15 +44,35 @@ value class Money(val paise: Long) : Comparable<Money> {
         return if (fraction == 0L) "$rupees" else "$rupees.${fraction.toString().padStart(2, '0')}"
     }
 
+    /** Always two decimals, no symbol or grouping, for files: "1000.00", "-50.25". */
+    fun toPlainString(): String {
+        val sign = if (paise < 0) "-" else ""
+        val abs = paise.absoluteValue
+        return "$sign${abs / 100}.${(abs % 100).toString().padStart(2, '0')}"
+    }
+
+    /**
+     * Divides this amount into [parts] amounts that differ by at most one paisa
+     * and add up exactly to this amount; the first parts get the leftover paise.
+     */
+    fun splitEvenly(parts: Int): List<Money> {
+        require(parts > 0) { "parts must be positive" }
+        require(!isNegative) { "Only non-negative amounts can be split" }
+        val base = paise / parts
+        val remainder = (paise % parts).toInt()
+        return List(parts) { index -> Money(base + if (index < remainder) 1 else 0) }
+    }
+
     companion object {
         val ZERO = Money(0)
 
-        // ₹99,99,99,999.99: far above any real expense, and small enough that
+        // 99,99,99,999.99: far above any real expense, and small enough that
         // amount × basis points can never overflow a Long.
         private const val MAX_INPUT_PAISE = 99_99_99_999_99L
 
         private val AMOUNT = Regex("""^(\d*)(?:\.(\d{0,2}))?$""")
         private val PARTIAL_AMOUNT = Regex("""^\d{0,10}(?:\.\d{0,2})?$""")
+        private val SYMBOLS = Regex("""[₹$€£]|rs\.?|inr""", RegexOption.IGNORE_CASE)
 
         fun rupees(rupees: Long) = Money(rupees * 100)
 
@@ -60,7 +81,7 @@ value class Money(val paise: Long) : Comparable<Money> {
          * for anything that is not a non-negative amount with at most two decimals.
          */
         fun parse(input: String): Money? {
-            val cleaned = input.replace(",", "").replace("₹", "").trim()
+            val cleaned = input.replace(",", "").replace(SYMBOLS, "").trim()
             val match = AMOUNT.matchEntire(cleaned) ?: return null
             val (whole, fraction) = match.destructured
             if (whole.isEmpty() && fraction.isEmpty()) return null
@@ -77,6 +98,8 @@ value class Money(val paise: Long) : Comparable<Money> {
 inline fun <T> Iterable<T>.sumMoney(selector: (T) -> Money): Money =
     fold(Money.ZERO) { total, item -> total + selector(item) }
 
+fun Iterable<Money>.sum(): Money = fold(Money.ZERO) { total, amount -> total + amount }
+
 // Indian grouping: the last three digits, then pairs — 1,23,45,678.
 private fun groupIndian(value: Long): String {
     val digits = value.toString()
@@ -84,3 +107,7 @@ private fun groupIndian(value: Long): String {
     val pairs = digits.dropLast(3).reversed().chunked(2).joinToString(",").reversed()
     return "$pairs,${digits.takeLast(3)}"
 }
+
+// International grouping: 12,345,678.
+private fun groupThousands(value: Long): String =
+    value.toString().reversed().chunked(3).joinToString(",").reversed()

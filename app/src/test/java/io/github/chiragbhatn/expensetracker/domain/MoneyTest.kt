@@ -58,4 +58,27 @@ class MoneyTest {
         assertFalse(Money.isPartialInput("1a"))
         assertFalse(Money.isPartialInput("1.2.3"))
     }
+
+    @Test
+    fun `formats other currencies with international grouping`() {
+        assertEquals("$1,234,567.50", Money(123_456_750).format(Currency.USD))
+        assertEquals("€1,000", Money.rupees(1_000).format(Currency.EUR))
+        assertEquals("AED 99", Money.rupees(99).format(Currency.AED))
+        assertEquals(Currency.GBP, Currency.fromCode(" gbp "))
+        assertEquals(Currency.INR, Currency.fromCode("XYZ"))
+    }
+
+    @Test
+    fun `plain strings for files always have two decimals`() {
+        assertEquals("1000.00", Money.rupees(1_000).toPlainString())
+        assertEquals("0.05", Money(5).toPlainString())
+        assertEquals("-50.25", Money(-5_025).toPlainString())
+    }
+
+    @Test
+    fun `splits evenly without losing a paisa`() {
+        assertEquals(listOf(Money(334), Money(333), Money(333)), Money(1_000).splitEvenly(3))
+        assertEquals(List(3) { Money.rupees(300) }, Money.rupees(900).splitEvenly(3))
+        assertEquals(Money(1_000), Money(1_000).splitEvenly(7).sum())
+    }
 }

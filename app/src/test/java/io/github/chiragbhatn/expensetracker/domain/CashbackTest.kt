@@ -94,4 +94,41 @@ class CashbackTest {
         assertEquals(Percentage.ZERO, quoteCashback("Swiggy", PaymentMethod.CASH, rules, saved).percentage)
         assertEquals(Percentage(1_000), quoteCashback("Swiggy", PaymentMethod.CARD, rules, saved).percentage)
     }
+
+    @Test
+    fun `a rule for a specific card wins over a rule for any card`() {
+        val anyCard = CashbackRule(10, "Amazon", Percentage(100), enabled = true)
+        val amazonPay = CashbackRule(11, "Amazon", Percentage(500), enabled = true, cardId = 2)
+        val cardRules = listOf(anyCard, amazonPay)
+
+        assertEquals(amazonPay, cardRules.forMerchant("amazon", cardId = 2))
+        assertEquals(anyCard, cardRules.forMerchant("amazon", cardId = 3))
+        assertEquals(anyCard, cardRules.forMerchant("amazon"))
+        assertEquals(Percentage(500), quoteCashback("Amazon", PaymentMethod.CARD, cardRules, saved = null, cardId = 2).percentage)
+        assertEquals(Percentage(100), quoteCashback("Amazon", PaymentMethod.CARD, cardRules, saved = null, cardId = 3).percentage)
+    }
+
+    @Test
+    fun `a merchant with rules only for other cards earns nothing`() {
+        val amazonPay = CashbackRule(11, "Amazon", Percentage(500), enabled = true, cardId = 2)
+
+        assertEquals(CashbackEligibility.OtherCard(amazonPay), cashbackEligibility("Amazon", PaymentMethod.CARD, listOf(amazonPay), cardId = 3))
+        assertEquals(Percentage.ZERO, quoteCashback("Amazon", PaymentMethod.CARD, listOf(amazonPay), saved = null, cardId = 3).percentage)
+    }
+
+    @Test
+    fun `changing the card re-applies the rules`() {
+        val saved = SavedCashback("Swiggy", PaymentMethod.CARD, Percentage(1_000), cardId = 1)
+
+        assertEquals(Percentage(1_000), quoteCashback("Swiggy", PaymentMethod.CARD, rules, saved, cardId = 1).percentage)
+        assertEquals(Percentage(1_000), quoteCashback("Swiggy", PaymentMethod.CARD, listOf(swiggy.copy(percentage = Percentage(500))), saved, cardId = 1).percentage)
+        assertEquals(Percentage(500), quoteCashback("Swiggy", PaymentMethod.CARD, listOf(swiggy.copy(percentage = Percentage(500))), saved, cardId = 2).percentage)
+    }
+
+    @Test
+    fun `rounds cashback half up to the paisa`() {
+        assertEquals(Money(1_234), CashbackBreakdown.calculate(Money(12_344), Percentage(1_000)).cashbackAmount)
+        assertEquals(Money(1_235), CashbackBreakdown.calculate(Money(12_345), Percentage(1_000)).cashbackAmount)
+        assertTrue(CashbackBreakdown.calculate(Money(12_345), Percentage(1_000)).let { it.cashbackAmount + it.effectiveAmount == it.originalAmount })
+    }
 }
