@@ -50,7 +50,9 @@ import io.github.chiragbhatn.expensetracker.ui.components.balanceColor
 import io.github.chiragbhatn.expensetracker.ui.shareText
 import io.github.chiragbhatn.expensetracker.ui.toast
 import io.github.chiragbhatn.expensetracker.ui.today
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.time.LocalDate
 import java.time.YearMonth
 
@@ -191,15 +193,18 @@ fun SettleScreen(personId: Long, onDone: () -> Unit) {
                     scope.launch {
                         try {
                             val result = container.people.settle(personId, chosen, LocalDate.ofEpochDay(dateDay), note)
-                            toast(
-                                context,
-                                if (result.kind == SettlementKind.EXTRA && result.after.credit.isPositive) {
-                                    "${person.name} has ${result.after.credit.format()} credit."
-                                } else {
-                                    ShareMessages.headline(person.name, result.after)
-                                },
-                            )
-                            onDone()
+                            // Back on the main thread for the message and navigation.
+                            withContext(Dispatchers.Main) {
+                                toast(
+                                    context,
+                                    if (result.kind == SettlementKind.EXTRA && result.after.credit.isPositive) {
+                                        "${person.name} has ${result.after.credit.format()} credit."
+                                    } else {
+                                        ShareMessages.headline(person.name, result.after)
+                                    },
+                                )
+                                onDone()
+                            }
                         } finally {
                             saving = false
                         }

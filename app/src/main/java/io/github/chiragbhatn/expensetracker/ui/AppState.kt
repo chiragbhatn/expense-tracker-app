@@ -2,6 +2,8 @@ package io.github.chiragbhatn.expensetracker.ui
 
 import android.content.Context
 import android.content.Intent
+import android.os.Handler
+import android.os.Looper
 import android.widget.Toast
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -72,4 +74,9 @@ fun shareText(context: Context, text: String, subject: String? = null) {
     }
 }
 
-fun toast(context: Context, message: String) = Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+/** Shows a short message; safe to call from any thread. */
+fun toast(context: Context, message: String) {
+    val app = context.applicationContext
+    val show = Runnable { Toast.makeText(app, message, Toast.LENGTH_SHORT).show() }
+    if (Looper.myLooper() == Looper.getMainLooper()) show.run() else Handler(Looper.getMainLooper()).post(show)
+}
