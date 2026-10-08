@@ -63,6 +63,12 @@ android {
         compose = true
     }
 
+    packaging {
+        // The offline text-recognition library ships native code for four CPU types. Storing it
+        // compressed roughly halves the APK people download; Android unpacks it on install.
+        jniLibs.useLegacyPackaging = true
+    }
+
     testOptions {
         unitTests.isIncludeAndroidResources = true
     }
