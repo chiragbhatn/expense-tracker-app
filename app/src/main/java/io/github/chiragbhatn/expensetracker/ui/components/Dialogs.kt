@@ -1,6 +1,5 @@
 package io.github.chiragbhatn.expensetracker.ui.components
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -137,7 +136,7 @@ fun MessageDialog(title: String, message: String, onDismiss: () -> Unit) {
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(title) },
-        text = { Text(message, modifier = Modifier.clickable(enabled = false) {}) },
+        text = { Text(message) },
         confirmButton = { TextButton(onClick = onDismiss, modifier = Modifier.testTag(TestTags.DIALOG_CONFIRM)) { Text("OK") } },
     )
 }

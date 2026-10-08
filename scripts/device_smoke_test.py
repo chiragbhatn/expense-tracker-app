@@ -105,19 +105,25 @@ def find(matches, timeout=10.0, index=0):
         time.sleep(0.5)
 
 
-def scroll_down():
+def scroll(down=True):
     size = re.search(r"(\d+)x(\d+)", adb("shell", "wm", "size")).groups()
     width, height = int(size[0]), int(size[1])
-    adb("shell", "input", "swipe", str(width // 2), str(height * 2 // 3), str(width // 2), str(height // 3), "400")
+    start, end = (height * 3 // 5, height * 2 // 5) if down else (height * 2 // 5, height * 3 // 5)
+    adb("shell", "input", "swipe", str(width // 2), str(start), str(width // 2), str(end), "400")
     time.sleep(1)
 
 
-def find_scrolling(matches, what, scrolls=4, index=0):
-    for attempt in range(scrolls + 1):
-        node = find(matches, timeout=3 if attempt < scrolls else 5, index=index)
-        if node is not None:
-            return node
-        scroll_down()
+def find_scrolling(matches, what, scrolls=5, index=0):
+    """Finds a node, scrolling down and then back up if it is off screen."""
+    node = find(matches, timeout=5, index=index)
+    for down in (True, False):
+        for _ in range(scrolls if down else scrolls * 2):
+            if node is not None:
+                return node
+            scroll(down)
+            node = find(matches, timeout=1, index=index)
+    if node is not None:
+        return node
     fail(f"{what} not found on screen")
 
 
@@ -175,8 +181,9 @@ def settle_rahul_from_v1():
     tap(by_id("person_Rahul"), "Rahul")
     expect_id_text("person_headline", "Rahul owes you ₹500")
     tap(by_id("settle"), "Settle button")
-    tap(with_text("Full amount"), "Full amount option")
-    tap(exact_text("Settle"), "Settle button")
+    tap(by_id("settle_full"), "Full amount option")
+    expect_text("Full settlement")
+    tap(by_id("settle_confirm"), "Settle button")
     expect_id_text("person_headline", "Account settled ✓")
     tap(described_as("Back"), "Back button")
     tap(by_id("tab_home"), "Home tab")
@@ -258,22 +265,23 @@ def main():
     tap(by_id("save"), "Save button")
     expect_id_text("person_headline", "Rahul owes you ₹180")
     tap(by_id("settle"), "Settle button")
-    tap(with_text("Another amount"), "Another amount option")
-    tap(text_field(), "amount field")
+    tap(by_id("settle_partial"), "Another amount option")
+    tap(by_id("settle_amount"), "amount field")
     type_text("500")
-    expect_text("Rahul has ₹320 credit")
+    expect_id_text("settle_preview", "Extra payment. After this: outstanding ₹0, Rahul has ₹320 credit.")
     screenshot("10-settle-extra")
-    tap(exact_text("Settle"), "Settle button")
+    tap(by_id("settle_confirm"), "Settle button")
     expect_id_text("person_headline", "Rahul has ₹320 extra credit.")
     screenshot("11-rahul-credit")
 
     tap(by_id("share_balance"), "Share Balance")
-    message = find_scrolling(text_field(), "share message")
-    if "you've paid ₹320 extra" not in (message.get("text") or ""):
+    message = find_scrolling(by_id("share_message"), "share message")
+    expected = "Hi Rahul, you've paid ₹320 extra. You currently have a ₹320 credit balance with me, which will be adjusted against your next expense."
+    if message.get("text") != expected:
         fail(f"share message is {message.get('text')!r}")
-    print("ok  share message mentions the ₹320 credit")
+    print("ok  share message offers the ₹320 credit wording")
     screenshot("12-share-balance")
-    tap(exact_text("Cancel"), "Cancel button")
+    tap(described_as("Back"), "Back button")
     tap(described_as("Back"), "Back button")
 
     tap(by_id("tab_reports"), "Reports tab")

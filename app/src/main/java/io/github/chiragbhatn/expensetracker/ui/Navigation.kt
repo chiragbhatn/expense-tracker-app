@@ -59,6 +59,8 @@ import io.github.chiragbhatn.expensetracker.ui.udhaar.EntryFormScreen
 import io.github.chiragbhatn.expensetracker.ui.udhaar.PersonActions
 import io.github.chiragbhatn.expensetracker.ui.udhaar.PersonFormScreen
 import io.github.chiragbhatn.expensetracker.ui.udhaar.PersonScreen
+import io.github.chiragbhatn.expensetracker.ui.udhaar.SettleScreen
+import io.github.chiragbhatn.expensetracker.ui.udhaar.ShareBalanceScreen
 import io.github.chiragbhatn.expensetracker.ui.udhaar.UdhaarScreen
 
 object Routes {
@@ -74,6 +76,8 @@ object Routes {
     const val ENTRY = "entry?personId={personId}&type={type}&entryId={entryId}"
     const val PERSON = "person/{personId}"
     const val PERSON_EDIT = "personEdit?personId={personId}"
+    const val SHARE_BALANCE = "shareBalance/{personId}"
+    const val SETTLE = "settle/{personId}"
     const val CARDS = "cards"
     const val CARD = "card/{cardId}"
     const val CARD_EDIT = "cardEdit?cardId={cardId}"
@@ -96,6 +100,8 @@ object Routes {
     fun entry(personId: Long?, type: LedgerType, entryId: Long? = null) = "entry?personId=${personId ?: -1}&type=${type.name}&entryId=${entryId ?: -1}"
     fun person(id: Long) = "person/$id"
     fun personEdit(id: Long? = null) = "personEdit?personId=${id ?: -1}"
+    fun shareBalance(personId: Long) = "shareBalance/$personId"
+    fun settle(personId: Long) = "settle/$personId"
     fun card(id: Long) = "card/$id"
     fun cardEdit(id: Long? = null) = "cardEdit?cardId=${id ?: -1}"
     fun recurringEdit(id: Long? = null) = "recurringEdit?recurringId=${id ?: -1}"
@@ -264,9 +270,20 @@ fun ExpenseTrackerNavHost(navController: NavHostController = rememberNavControll
                     addEntry = { id, type -> go(Routes.entry(id, type)) },
                     openEntry = { id, entryId -> go(Routes.entry(id, LedgerType.UDHAAR_GIVEN, entryId)) },
                     openExpense = { go(Routes.expense(it)) },
-                    editShareWording = { go(Routes.SHARE_WORDING) },
+                    shareBalance = { go(Routes.shareBalance(it)) },
+                    settle = { go(Routes.settle(it)) },
                 ),
             )
+        }
+        composable(Routes.SHARE_BALANCE, arguments = listOf(navArgument("personId") { type = NavType.LongType })) { entry ->
+            ShareBalanceScreen(
+                personId = entry.arguments?.getLong("personId") ?: -1L,
+                onBack = { navController.popFrom(entry) },
+                onEditWording = { go(Routes.SHARE_WORDING) },
+            )
+        }
+        composable(Routes.SETTLE, arguments = listOf(navArgument("personId") { type = NavType.LongType })) { entry ->
+            SettleScreen(personId = entry.arguments?.getLong("personId") ?: -1L, onDone = { navController.popFrom(entry) })
         }
         composable(Routes.PERSON_EDIT, arguments = listOf(optionalLong("personId"))) { entry ->
             val personId = entry.long("personId")

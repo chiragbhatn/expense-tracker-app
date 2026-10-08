@@ -74,7 +74,7 @@ fun ReportsScreen(
                 InfoCard(title = "Monthly summary") {
                     AmountLine("Income", summary.income.format(), amountTag = "summary_income")
                     AmountLine("Original expenses", summary.originalExpenses.format(), amountTag = "summary_original")
-                    AmountLine("Cashback", "−${summary.cashback.format()}", amountTag = "summary_cashback", color = colors.positive)
+                    AmountLine("Cashback", (-summary.cashback).format(), amountTag = "summary_cashback", color = colors.positive)
                     AmountLine("Effective expenses", summary.effectiveExpenses.format(), amountTag = "summary_effective", emphasized = true)
                     HorizontalDivider()
                     AmountLine("Money to receive", summary.receivable.format(), amountTag = "summary_receivable")

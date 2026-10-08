@@ -192,19 +192,27 @@ class AppFlowTest {
         compose.assertText(TestTags.TOTAL_PAID, "₹300")
 
         compose.onNodeWithTag(TestTags.SETTLE).performScrollTo().performClick()
+        compose.waitUntilExists(hasTestTag(TestTags.SETTLE_FULL))
         compose.onNodeWithTag(TestTags.SETTLE_FULL).performClick()
-        compose.waitUntilExists(hasTestTag(TestTags.SETTLE_PREVIEW))
-        compose.onNodeWithTag(TestTags.SETTLE_CONFIRM).performClick()
+        compose.waitForText(TestTags.SETTLE_PREVIEW, "Full settlement. After this: outstanding ₹0.")
+        compose.onNodeWithTag(TestTags.SETTLE_CONFIRM).performScrollTo().performClick()
 
         compose.waitForText(TestTags.PERSON_HEADLINE, "Account settled ✓")
     }
 
     @Test
     fun extraPaymentBecomesCredit() {
-        val rahul = addExpenseFor("Rahul", rupees = 500)
-        runBlocking { container.people.settle(rahul, Money.rupees(500), today, "") }
+        addExpenseFor("Rahul", rupees = 500)
 
         openPerson("Rahul")
+        compose.waitForText(TestTags.PERSON_HEADLINE, "Rahul owes you ₹450")
+        // Rahul pays ₹500 against the ₹450 he owes.
+        compose.onNodeWithTag(TestTags.SETTLE).performScrollTo().performClick()
+        compose.waitUntilExists(hasTestTag(TestTags.SETTLE_PARTIAL))
+        compose.onNodeWithTag(TestTags.SETTLE_PARTIAL).performClick()
+        compose.onNodeWithTag(TestTags.SETTLE_AMOUNT).performTextInput("500")
+        compose.waitForText(TestTags.SETTLE_PREVIEW, "Extra payment. After this: outstanding ₹0, Rahul has ₹50 credit.")
+        compose.onNodeWithTag(TestTags.SETTLE_CONFIRM).performScrollTo().performClick()
 
         compose.waitForText(TestTags.PERSON_HEADLINE, "Rahul has ₹50 extra credit.")
         compose.assertText(TestTags.PERSON_BALANCE, "₹50 credit")
@@ -219,7 +227,7 @@ class AppFlowTest {
         compose.waitForText(TestTags.PERSON_HEADLINE, "Rahul owes you ₹1,500")
         compose.onNodeWithTag(TestTags.SHARE_BALANCE).performScrollTo().performClick()
         compose.waitUntilExists(hasTestTag(TestTags.SHARE_SEND))
-        compose.onNodeWithTag(TestTags.SHARE_SEND).performClick()
+        compose.onNodeWithTag(TestTags.SHARE_SEND).performScrollTo().performClick()
 
         val chooser = shadowOf(app).nextStartedActivity
         assertEquals(Intent.ACTION_CHOOSER, chooser.action)
