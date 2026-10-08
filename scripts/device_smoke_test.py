@@ -26,6 +26,8 @@ from pathlib import Path
 PACKAGE = "io.github.chiragbhatn.expensetracker"
 APK = sys.argv[1]
 OUT = Path(sys.argv[2])
+# Print as the walkthrough goes, so the job log's timestamps line up with each step.
+sys.stdout.reconfigure(line_buffering=True)
 
 
 def adb(*args, check=True):
@@ -47,6 +49,10 @@ def screenshot(name):
 
 def fail(message):
     screenshot("failure")
+    # Which window had input focus: tells a dialog that never opened from one that was not read.
+    for line in adb("shell", "dumpsys", "window", check=False).splitlines():
+        if "mCurrentFocus" in line or "mFocusedApp" in line:
+            print(line.strip())
     print(adb("logcat", "-d", "-b", "crash", check=False))
     sys.exit(f"FAILED: {message}")
 
@@ -105,10 +111,25 @@ def find(matches, timeout=10.0, index=0):
         time.sleep(0.5)
 
 
-def scroll(down=True):
-    size = re.search(r"(\d+)x(\d+)", adb("shell", "wm", "size")).groups()
-    width, height = int(size[0]), int(size[1])
-    start, end = (height * 3 // 5, height * 2 // 5) if down else (height * 2 // 5, height * 3 // 5)
+_screen = []
+
+
+def screen_size():
+    if not _screen:
+        _screen.extend(int(n) for n in re.search(r"(\d+)x(\d+)", adb("shell", "wm", "size")).groups())
+    return _screen[0], _screen[1]
+
+
+def center(node):
+    x1, y1, x2, y2 = map(int, re.findall(r"\d+", node.get("bounds")))
+    return (x1 + x2) // 2, (y1 + y2) // 2
+
+
+def scroll(down=True, distance=0.2):
+    width, height = screen_size()
+    start, end = int(height * (0.5 + distance / 2)), int(height * (0.5 - distance / 2))
+    if not down:
+        start, end = end, start
     adb("shell", "input", "swipe", str(width // 2), str(start), str(width // 2), str(end), "400")
     time.sleep(1)
 
@@ -129,10 +150,30 @@ def find_scrolling(matches, what, scrolls=5, index=0):
 
 def tap(matches, what, scrolls=4, index=0):
     node = find_scrolling(matches, what, scrolls, index)
-    x1, y1, x2, y2 = map(int, re.findall(r"\d+", node.get("bounds")))
-    adb("shell", "input", "tap", str((x1 + x2) // 2), str((y1 + y2) // 2))
+    # A control at the bottom edge can be partly hidden or next to the gesture bar:
+    # scroll it up first, unless the screen cannot scroll any further.
+    for _ in range(3):
+        if center(node)[1] < screen_size()[1] * 0.8:
+            break
+        before = node.get("bounds")
+        scroll(down=True, distance=0.15)
+        node = find_scrolling(matches, what, scrolls, index)
+        if node.get("bounds") == before:
+            break
+    x, y = center(node)
+    adb("shell", "input", "tap", str(x), str(y))
     time.sleep(1)
     check_alive()
+
+
+def open_people_picker():
+    """Opens "Who is it for?"; its "Add a new person" button shows the dialog is up."""
+    for attempt in range(2):
+        tap(by_id("split_add_people"), "Add people")
+        if find(exact_text("Add a new person"), timeout=5) is not None:
+            return
+        screenshot(f"people-picker-not-open-{attempt + 1}")
+    fail("the people picker did not open")
 
 
 def type_text(text):
@@ -213,15 +254,16 @@ def main():
         tap(described_as("Back"), "Back button")
 
     # ₹200 at Swiggy by card, entirely for Rahul: he owes the ₹180 after cashback.
+    # People are picked first, so no text field has focus when the dialog opens.
     tap(by_id("quick_expense"), "Add expense")
+    open_people_picker()
+    tap(exact_text("Rahul"), "Rahul in the list")
+    tap(exact_text("Done"), "Done")
+    tap(by_id("split_include_me"), "Include my share switch")
     tap(by_id("amount_input"), "amount field")
     type_text("200")
     tap(by_id("merchant_input"), "merchant field")
     type_text("Swiggy")
-    tap(by_id("split_add_people"), "Add people")
-    tap(exact_text("Rahul"), "Rahul in the list")
-    tap(exact_text("Done"), "Done")
-    tap(by_id("split_include_me"), "Include my share switch")
     expect_id_text("breakdown_original", "₹200")
     expect_id_text("breakdown_cashback", "−₹20")
     expect_id_text("breakdown_effective", "₹180")
@@ -232,16 +274,16 @@ def main():
 
     # ₹1,000 split equally between me, Rahul and Amit: ₹300 each after cashback.
     tap(by_id("quick_expense"), "Add expense")
-    tap(by_id("amount_input"), "amount field")
-    type_text("1000")
-    tap(by_id("merchant_input"), "merchant field")
-    type_text("Swiggy")
-    tap(by_id("split_add_people"), "Add people")
+    open_people_picker()
     tap(exact_text("Rahul"), "Rahul in the list")
     tap(exact_text("Add a new person"), "Add a new person")
     tap(text_field(), "name field")
     type_text("Amit")
     tap(exact_text("Add"), "Add button")
+    tap(by_id("amount_input"), "amount field")
+    type_text("1000")
+    tap(by_id("merchant_input"), "merchant field")
+    type_text("Swiggy")
     expect_id_text("breakdown_effective", "₹900")
     expect_id_text("share_amount_Rahul", "₹300")
     expect_id_text("share_amount_Amit", "₹300")

@@ -21,8 +21,9 @@ export, and a full Excel backup you can restore on a new phone.
    Protect says the app is from an unknown developer, choose
    **More details → Install anyway**.
 
-Needs Android 8.0 or newer. Every build is signed with the same key, so a
-newer APK installs over the old one and keeps your data.
+Needs Android 8.0 or newer. The APK is about 21 MB, most of it the offline
+text recognition used for receipt scanning. Every build is signed with the
+same key, so a newer APK installs over the old one and keeps your data.
 
 ### Updating from version 1
 
