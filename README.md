@@ -419,7 +419,8 @@ runs on every push:
    - Compose UI flows: the ₹200 Swiggy expense for Rahul, a three-way split,
      custom shares that must add up, a full and an extra settlement, Share
      Balance, switching a rule on, search, dark mode and colour contrast.
-2. Builds the signed release APK.
+2. Builds the debug APK and the signed release APK, and verifies the release
+   APK's signature and package details.
 3. On an Android emulator: installs the version 1 APK, records a Swiggy expense
    for Rahul and a repayment, then installs this APK over it. It checks Rahul's
    balance and the rules survived, applies the version 1 correction, and
