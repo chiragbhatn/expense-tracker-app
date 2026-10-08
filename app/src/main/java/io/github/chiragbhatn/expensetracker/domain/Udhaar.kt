@@ -167,6 +167,12 @@ fun List<PersonBalance>.moneyToReceive(): Money = sumMoney { it.summary.receivab
 /** Total you owe people: money you borrowed plus credit they hold with you. */
 fun List<PersonBalance>.moneyToGive(): Money = sumMoney { it.summary.payable + it.summary.credit }
 
+/** Total you owe people because you borrowed from them. */
+fun List<PersonBalance>.moneyToPay(): Money = sumMoney { it.summary.payable }
+
+/** Total that people paid you beyond what they owed, held as their credit. */
+fun List<PersonBalance>.creditHeld(): Money = sumMoney { it.summary.credit }
+
 /** People who have owed you money with no ledger activity for more than [days] days. */
 fun List<PersonBalance>.overdue(today: LocalDate, days: Long = 30): List<PersonBalance> =
     filter { balance ->

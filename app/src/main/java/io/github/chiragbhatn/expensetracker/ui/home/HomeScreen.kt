@@ -43,7 +43,8 @@ import io.github.chiragbhatn.expensetracker.domain.CardMath
 import io.github.chiragbhatn.expensetracker.domain.MonthlySummary
 import io.github.chiragbhatn.expensetracker.domain.Period
 import io.github.chiragbhatn.expensetracker.domain.SpendingSummary
-import io.github.chiragbhatn.expensetracker.domain.moneyToGive
+import io.github.chiragbhatn.expensetracker.domain.creditHeld
+import io.github.chiragbhatn.expensetracker.domain.moneyToPay
 import io.github.chiragbhatn.expensetracker.domain.moneyToReceive
 import io.github.chiragbhatn.expensetracker.domain.overdue
 import io.github.chiragbhatn.expensetracker.domain.sumMoney
@@ -142,8 +143,10 @@ fun HomeScreen(bottomBar: @Composable () -> Unit, actions: HomeActions) {
                 InfoCard(title = "Udhaar", onClick = actions.openUdhaar) {
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         Stat("Money to receive", balances.moneyToReceive().format(), Modifier.weight(1f), color = colors.positive, tag = TestTags.DASHBOARD_TO_RECEIVE)
-                        Stat("Money to pay", balances.moneyToGive().format(), Modifier.weight(1f), color = colors.negative, tag = TestTags.DASHBOARD_TO_PAY)
+                        Stat("Money to pay", balances.moneyToPay().format(), Modifier.weight(1f), color = colors.negative, tag = TestTags.DASHBOARD_TO_PAY)
                     }
+                    val credit = balances.creditHeld()
+                    if (credit.isPositive) Hint("Credit people hold with you: ${credit.format()}, adjusted against their next expenses.")
                     if (overdue.isNotEmpty()) {
                         Text(
                             "Overdue: ${overdue.size} ${if (overdue.size == 1) "person owes" else "people owe"} ${overdue.sumMoney { it.summary.receivable }.format()} " +

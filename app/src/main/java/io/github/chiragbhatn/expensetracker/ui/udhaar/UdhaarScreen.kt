@@ -33,7 +33,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import io.github.chiragbhatn.expensetracker.domain.BalanceState
-import io.github.chiragbhatn.expensetracker.domain.moneyToGive
+import io.github.chiragbhatn.expensetracker.domain.creditHeld
+import io.github.chiragbhatn.expensetracker.domain.moneyToPay
 import io.github.chiragbhatn.expensetracker.domain.moneyToReceive
 import io.github.chiragbhatn.expensetracker.domain.overdue
 import io.github.chiragbhatn.expensetracker.ui.LocalAppContainer
@@ -43,6 +44,7 @@ import io.github.chiragbhatn.expensetracker.ui.appSettings
 import io.github.chiragbhatn.expensetracker.ui.components.AddActions
 import io.github.chiragbhatn.expensetracker.ui.components.AddMenuFab
 import io.github.chiragbhatn.expensetracker.ui.components.EmptyState
+import io.github.chiragbhatn.expensetracker.ui.components.Hint
 import io.github.chiragbhatn.expensetracker.ui.components.InfoCard
 import io.github.chiragbhatn.expensetracker.ui.components.InitialAvatar
 import io.github.chiragbhatn.expensetracker.ui.components.Loading
@@ -105,9 +107,11 @@ fun UdhaarScreen(
                 InfoCard(title = null) {
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         Stat("To receive", balances.moneyToReceive().format(), Modifier.weight(1f), color = colors.positive, tag = TestTags.DASHBOARD_TO_RECEIVE)
-                        Stat("To pay", balances.moneyToGive().format(), Modifier.weight(1f), color = colors.negative)
+                        Stat("To pay", balances.moneyToPay().format(), Modifier.weight(1f), color = colors.negative)
                         Stat("Overdue", overdueIds.size.toString(), Modifier.weight(1f))
                     }
+                    val credit = balances.creditHeld()
+                    if (credit.isPositive) Hint("Credit people hold with you: ${credit.format()}, adjusted against their next expenses.")
                 }
             }
             item {

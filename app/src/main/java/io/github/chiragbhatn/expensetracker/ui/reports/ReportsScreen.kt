@@ -79,6 +79,7 @@ fun ReportsScreen(
                     HorizontalDivider()
                     AmountLine("Money to receive", summary.receivable.format(), amountTag = "summary_receivable")
                     AmountLine("Money to pay", summary.payable.format(), amountTag = "summary_payable")
+                    if (summary.credit.isPositive) AmountLine("Credit you hold for people", summary.credit.format(), amountTag = "summary_credit")
                     HorizontalDivider()
                     AmountLine(
                         "Net position",
@@ -87,7 +88,7 @@ fun ReportsScreen(
                         emphasized = true,
                         color = if (summary.netPosition.isNegative) colors.negative else colors.positive,
                     )
-                    Hint("Net position = income − effective expenses + money to receive − money to pay. Cashback is counted once, in effective expenses.")
+                    Hint("Net position = income − effective expenses + money to receive − money to pay − credit you hold for people. Cashback is counted once, in effective expenses.")
                 }
             }
             item {

@@ -56,6 +56,22 @@ class ReportsTest {
     }
 
     @Test
+    fun `credit people hold with you is kept apart from what you owe`() {
+        val neha = Person(3, "Neha")
+        // Neha owed ₹450 and paid ₹500: ₹50 is her credit, not money you borrowed.
+        val withCredit = entries + listOf(
+            UdhaarEntry(3, neha.id, UdhaarDirection.GAVE, Money.rupees(450), LocalDate.of(2026, 10, 6), "", null, null, LedgerType.UDHAAR_GIVEN),
+            UdhaarEntry(4, neha.id, UdhaarDirection.GOT, Money.rupees(500), LocalDate.of(2026, 10, 7), "", null, null, LedgerType.SETTLEMENT),
+        )
+        val summary = MonthlySummary.of(Period.Month(october), expenses, incomes, listOf(rahul, amit, neha), withCredit, today)
+
+        assertEquals(Money.rupees(180), summary.receivable)
+        assertEquals(Money.rupees(500), summary.payable)
+        assertEquals(Money.rupees(50), summary.credit)
+        assertEquals(Money.rupees(48_450), summary.netPosition)
+    }
+
+    @Test
     fun `previous months use balances as they were at the month end`() {
         val september = MonthlySummary.of(Period.Month(october.minusMonths(1)), expenses, incomes, listOf(rahul, amit), entries, today)
 

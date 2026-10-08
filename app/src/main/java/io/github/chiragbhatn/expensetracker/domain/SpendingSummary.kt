@@ -44,11 +44,13 @@ data class MonthlySummary(
     val myShareOfExpenses: Money,
     /** What people owe you at the end of the period. */
     val receivable: Money,
-    /** What you owe people at the end of the period. */
+    /** What you owe people (money you borrowed) at the end of the period. */
     val payable: Money,
+    /** What people paid beyond what they owed, held as their credit, at the end of the period. */
+    val credit: Money,
 ) {
-    /** Income − effective expenses + money to receive − money to pay. */
-    val netPosition: Money get() = income - effectiveExpenses + receivable - payable
+    /** Income − effective expenses + money to receive − money to pay − credit you hold for people. */
+    val netPosition: Money get() = income - effectiveExpenses + receivable - payable - credit
 
     /** Income − effective expenses. */
     val cashFlow: Money get() = income - effectiveExpenses
@@ -77,7 +79,8 @@ data class MonthlySummary(
                 effectiveExpenses = inPeriod.sumMoney { it.amounts.effectiveAmount },
                 myShareOfExpenses = inPeriod.sumMoney { maxOf(Money.ZERO, it.myShare) },
                 receivable = positions.moneyToReceive(),
-                payable = positions.moneyToGive(),
+                payable = positions.moneyToPay(),
+                credit = positions.creditHeld(),
             )
         }
     }

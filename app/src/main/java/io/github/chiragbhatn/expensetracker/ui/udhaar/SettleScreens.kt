@@ -168,7 +168,7 @@ fun SettleScreen(personId: Long, onDone: () -> Unit) {
         }
         DateField(date = LocalDate.ofEpochDay(dateDay), onDateChange = { dateDay = it.toEpochDay() })
         TextInput(value = note, onValueChange = { note = it }, label = "Note (optional)", singleLine = false, tag = TestTags.NOTE_INPUT)
-        if (preview != null && amount != null) {
+        if (amount != null && preview != null) {
             val text = buildString {
                 append(
                     when (Settlement.kind(summary, amount)) {

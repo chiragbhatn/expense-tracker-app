@@ -51,14 +51,6 @@ jobs:
           ./gradlew assembleRelease
           cp app/build/outputs/apk/release/app-release.apk expense-tracker.apk
 
-      - name: Print Room schemas
-        run: |
-          for f in $(find app/schemas -name '*.json' | sort); do
-            echo "=== SCHEMA $f"
-            cat "$f"
-            echo "=== END SCHEMA"
-          done
-
       - uses: actions/upload-artifact@v4
         with:
           name: expense-tracker-apk

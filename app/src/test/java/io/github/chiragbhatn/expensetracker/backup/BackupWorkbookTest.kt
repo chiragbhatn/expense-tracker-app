@@ -286,11 +286,11 @@ class BackupWorkbookTest {
 
     @Test
     fun `reads a workbook re-saved by another spreadsheet app`() {
-        val dir = System.getProperty("fixtures.dir").orEmpty()
-        val file = File(dir, "resaved-backup.xlsx")
-        if (dir.isEmpty() || !file.exists()) return
+        // The sample backup opened and saved again with openpyxl ("Microsoft Excel Compatible"),
+        // which rewrites the cells, styles and workbook parts its own way.
+        val bytes = checkNotNull(javaClass.getResourceAsStream("/backup/resaved-backup.xlsx")).use { it.readBytes() }
 
-        val result = BackupWorkbook.read(file.readBytes(), file.name)
+        val result = BackupWorkbook.read(bytes, "resaved-backup.xlsx")
 
         assertTrue(result.errors.toString(), result.isValid)
         val expected = BackupFixtures.data.copy(settings = BackupFixtures.data.settings - "app_lock")
