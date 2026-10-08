@@ -1,13 +1,19 @@
 #!/usr/bin/env python3
 """Walks through the release APK on a connected device or emulator.
 
-Installs the APK, records a Swiggy card payment of ₹1,000 made for Rahul and
-checks that the app shows ₹100 cashback, a ₹900 effective expense and ₹1,000
-owed by Rahul. Then records a ₹400 repayment (₹600 left) and adds a cashback
-rule. Saves a screenshot of every screen along the way and fails on a crash or
-a wrong amount.
+With --after-v1, the version 1 walkthrough has just run on the same device:
+installing this APK over it must keep Rahul's ₹1,000 Swiggy expense, his
+₹400 repayment (₹600 still owed) and the Blinkit rule. The version 1 share
+is then corrected from Data management and Rahul is settled, so the rest
+runs from a clean balance.
 
-Usage: device_smoke_test.py <apk> <screenshot-dir>
+Then: a ₹200 Swiggy card expense for Rahul (₹20 cashback, Rahul owes ₹180),
+a ₹1,000 Swiggy expense split three ways with Amit (₹300 each), a ₹300
+payment, an extra payment that leaves Rahul with ₹320 credit, the Share
+Balance message, reports, dark theme, search and the Excel backup export.
+Saves a screenshot of every screen and fails on a crash or a wrong amount.
+
+Usage: device_smoke_test.py <apk> <screenshot-dir> [--after-v1]
 """
 
 import re
@@ -140,7 +146,44 @@ def expect_text(text):
     print(f"ok  {text!r} on screen")
 
 
+def settle_rahul_from_v1():
+    """Checks the upgraded version 1 data, corrects the version 1 share and settles Rahul."""
+    expect_id_text("dashboard_to_receive", "₹600")
+    tap(by_id("tab_udhaar"), "Udhaar tab")
+    tap(by_id("person_Rahul"), "Rahul")
+    expect_id_text("person_headline", "Rahul owes you ₹600")
+    expect_text("Swiggy (expense share)")
+    screenshot("02-v1-rahul-after-upgrade")
+    tap(described_as("Back"), "Back button")
+
+    tap(by_id("tab_settings"), "Settings tab")
+    tap(by_id("settings_cashback_rules"), "Cashback rules")
+    expect_text("Blinkit")
+    screenshot("03-v1-rules-after-upgrade")
+    tap(described_as("Back"), "Back button")
+
+    # Version 1 charged Rahul the full ₹1,000; version 2 charges the ₹900 after cashback.
+    tap(by_id("settings_data_management"), "Data management")
+    expect_text("before cashback on 1 expense")
+    screenshot("04-v1-review")
+    tap(with_text("Review and apply corrections"), "Review button")
+    tap(exact_text("Apply"), "Apply button")
+    expect_text("Nothing to review")
+    tap(described_as("Back"), "Back button")
+
+    tap(by_id("tab_udhaar"), "Udhaar tab")
+    tap(by_id("person_Rahul"), "Rahul")
+    expect_id_text("person_headline", "Rahul owes you ₹500")
+    tap(by_id("settle"), "Settle button")
+    tap(with_text("Full amount"), "Full amount option")
+    tap(exact_text("Settle"), "Settle button")
+    expect_id_text("person_headline", "Account settled ✓")
+    tap(described_as("Back"), "Back button")
+    tap(by_id("tab_home"), "Home tab")
+
+
 def main():
+    after_v1 = "--after-v1" in sys.argv[3:]
     # The emulator runs with a hardware keyboard; keep the on-screen keyboard
     # hidden so it never covers the controls being tapped. `input text` sends
     # key events, which Compose text fields accept without it.
@@ -148,64 +191,118 @@ def main():
     adb("install", "-r", APK)
     adb("logcat", "-c", check=False)
     adb("shell", "am", "start", "-W", "-n", f"{PACKAGE}/.MainActivity")
-    if find(by_id("add_expense"), timeout=30) is None:
-        fail("the dashboard did not appear")
-    screenshot("01-dashboard-empty")
+    if find(by_id("quick_expense"), timeout=30) is None:
+        fail("the home screen did not appear")
+    screenshot("01-home")
 
-    # Swiggy, card, ₹1,000, paid for Rahul (added through the "Add person" dialog).
-    tap(by_id("add_expense"), "Add expense button")
+    if after_v1:
+        settle_rahul_from_v1()
+    else:
+        tap(by_id("quick_person"), "Add person")
+        tap(by_id("name_input"), "name field")
+        type_text("Rahul")
+        tap(by_id("save"), "Save button")
+        expect_id_text("person_headline", "Account settled ✓")
+        tap(described_as("Back"), "Back button")
+
+    # ₹200 at Swiggy by card, entirely for Rahul: he owes the ₹180 after cashback.
+    tap(by_id("quick_expense"), "Add expense")
+    tap(by_id("amount_input"), "amount field")
+    type_text("200")
+    tap(by_id("merchant_input"), "merchant field")
+    type_text("Swiggy")
+    tap(by_id("split_add_people"), "Add people")
+    tap(exact_text("Rahul"), "Rahul in the list")
+    tap(exact_text("Done"), "Done")
+    tap(by_id("split_include_me"), "Include my share switch")
+    expect_id_text("breakdown_original", "₹200")
+    expect_id_text("breakdown_cashback", "−₹20")
+    expect_id_text("breakdown_effective", "₹180")
+    expect_id_text("share_amount_Rahul", "₹180")
+    screenshot("05-expense-for-rahul")
+    tap(by_id("save_expense"), "Save button")
+    expect_id_text("dashboard_to_receive", "₹180")
+
+    # ₹1,000 split equally between me, Rahul and Amit: ₹300 each after cashback.
+    tap(by_id("quick_expense"), "Add expense")
     tap(by_id("amount_input"), "amount field")
     type_text("1000")
     tap(by_id("merchant_input"), "merchant field")
     type_text("Swiggy")
-    tap(by_id("add_person"), "Add person chip")
+    tap(by_id("split_add_people"), "Add people")
+    tap(exact_text("Rahul"), "Rahul in the list")
+    tap(exact_text("Add a new person"), "Add a new person")
     tap(text_field(), "name field")
-    type_text("Rahul")
+    type_text("Amit")
     tap(exact_text("Add"), "Add button")
-
-    expect_id_text("breakdown_original", "₹1,000")
-    expect_id_text("breakdown_cashback", "−₹100")
     expect_id_text("breakdown_effective", "₹900")
-    expect_id_text("breakdown_udhaar", "₹1,000")
-    screenshot("02-add-expense-breakdown")
-
+    expect_id_text("share_amount_Rahul", "₹300")
+    expect_id_text("share_amount_Amit", "₹300")
+    screenshot("06-split-three-ways")
     tap(by_id("save_expense"), "Save button")
-    expect_id_text("dashboard_card_spending", "₹1,000")
-    expect_id_text("dashboard_cashback", "₹100")
-    expect_id_text("dashboard_effective", "₹900")
-    expect_text("Money to receive")
-    screenshot("03-dashboard")
+    expect_id_text("dashboard_to_receive", "₹780")
+    screenshot("07-home")
 
     tap(by_id("tab_expenses"), "Expenses tab")
     expect_text("Swiggy")
-    screenshot("04-expenses")
+    screenshot("08-expenses")
 
-    # Rahul owes the full ₹1,000, not ₹900. Record a ₹400 repayment.
+    # Rahul: ₹180 + ₹300 = ₹480. He pays ₹300, then ₹500 more: ₹320 extra credit.
     tap(by_id("tab_udhaar"), "Udhaar tab")
-    expect_text("Rahul")
-    screenshot("05-udhaar")
-    tap(with_text("Rahul"), "Rahul")
-    expect_id_text("person_balance", "₹1,000")
-    tap(exact_text("You got"), "You got button")
+    screenshot("09-udhaar")
+    tap(by_id("person_Rahul"), "Rahul")
+    expect_id_text("person_headline", "Rahul owes you ₹480")
+    tap(by_id("record_payment"), "Record Payment")
+    tap(by_id("amount_input"), "amount field")
+    type_text("300")
+    tap(by_id("save"), "Save button")
+    expect_id_text("person_headline", "Rahul owes you ₹180")
+    tap(by_id("settle"), "Settle button")
+    tap(with_text("Another amount"), "Another amount option")
     tap(text_field(), "amount field")
-    type_text("400")
-    tap(exact_text("Save"), "Save button")
-    expect_id_text("person_balance", "₹600")
-    screenshot("06-rahul")
+    type_text("500")
+    expect_text("Rahul has ₹320 credit")
+    screenshot("10-settle-extra")
+    tap(exact_text("Settle"), "Settle button")
+    expect_id_text("person_headline", "Rahul has ₹320 extra credit.")
+    screenshot("11-rahul-credit")
+
+    tap(by_id("share_balance"), "Share Balance")
+    message = find_scrolling(text_field(), "share message")
+    if "you've paid ₹320 extra" not in (message.get("text") or ""):
+        fail(f"share message is {message.get('text')!r}")
+    print("ok  share message mentions the ₹320 credit")
+    screenshot("12-share-balance")
+    tap(exact_text("Cancel"), "Cancel button")
     tap(described_as("Back"), "Back button")
 
-    # Add a cashback rule through the dialog.
-    tap(by_id("tab_rules"), "Cashback tab")
-    expect_text("Swiggy")
-    tap(by_id("add_rule"), "Add merchant button")
-    tap(text_field(), "merchant field")
-    type_text("Blinkit")
-    tap(text_field(), "percentage field", index=1)
-    type_text("5")
-    screenshot("07-add-rule")
-    tap(exact_text("Save"), "Save button")
-    expect_text("Blinkit")
-    screenshot("08-cashback-rules")
+    tap(by_id("tab_reports"), "Reports tab")
+    expect_text("Net position")
+    screenshot("13-reports")
+
+    tap(by_id("tab_settings"), "Settings tab")
+    tap(by_id("theme_setting"), "Theme")
+    tap(exact_text("Dark"), "Dark")
+    screenshot("14-settings-dark")
+    tap(by_id("tab_home"), "Home tab")
+    screenshot("15-home-dark")
+
+    tap(described_as("Search"), "Search")
+    tap(by_id("search_input"), "search field")
+    type_text("Swiggy")
+    expect_text("Total spending")
+    screenshot("16-search")
+    tap(described_as("Back"), "Back button")
+
+    tap(by_id("tab_settings"), "Settings tab")
+    tap(by_id("export_backup"), "Export full Excel backup")
+    tap(exact_text("Share"), "Share button")
+    time.sleep(2)
+    screenshot("17-share-backup")
+    adb("shell", "input", "keyevent", "KEYCODE_BACK")
+    time.sleep(1)
+    expect_text("Backup ready to share.")
+    screenshot("18-backup")
 
     check_alive()
     print("Device walkthrough passed")

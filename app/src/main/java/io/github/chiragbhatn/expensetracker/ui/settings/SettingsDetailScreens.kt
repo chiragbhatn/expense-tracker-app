@@ -385,7 +385,7 @@ fun DataScreen(onBack: () -> Unit, onOpenExpense: (Long) -> Unit) {
                         Hint("Nothing to review: every shared expense charges people the amount after cashback.")
                     } else {
                         Text(
-                            "${fixes.size} expense${if (fixes.size == 1) "" else "s"} from version 1 charge people the full amount before cashback. " +
+                            "Version 1 charged people the full amount before cashback on ${fixes.size} expense${if (fixes.size == 1) "" else "s"}. " +
                                 "Version 2 charges the effective amount. Correcting them lowers what people owe by ${fixes.sumMoney { it.difference }.format()} in total.",
                             style = MaterialTheme.typography.bodyMedium,
                         )

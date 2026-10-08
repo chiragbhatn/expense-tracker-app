@@ -363,7 +363,9 @@ private fun ExpenseFormContent(state: ExpenseFormUiState, viewModel: ExpenseForm
                 viewModel.setParticipants(chosen)
                 pickingPeople = false
             },
-            onAddNew = {
+            onAddNew = { chosen ->
+                // Keep who was ticked, then ask for the new person's name.
+                viewModel.setParticipants(chosen)
                 pickingPeople = false
                 addingPerson = true
             },
@@ -503,7 +505,7 @@ private fun PeoplePickerDialog(
     people: List<Person>,
     selected: Set<Long>,
     onDone: (List<Person>) -> Unit,
-    onAddNew: () -> Unit,
+    onAddNew: (List<Person>) -> Unit,
     onDismiss: () -> Unit,
 ) {
     var chosen by remember { mutableStateOf(selected) }
@@ -526,7 +528,7 @@ private fun PeoplePickerDialog(
                     }
                 }
                 HorizontalDivider(Modifier.padding(vertical = 8.dp))
-                TextButton(onClick = onAddNew, modifier = Modifier.testTag(TestTags.ADD_PERSON)) { Text("Add a new person") }
+                TextButton(onClick = { onAddNew(people.filter { it.id in chosen }) }, modifier = Modifier.testTag(TestTags.ADD_PERSON)) { Text("Add a new person") }
             }
         },
         confirmButton = {

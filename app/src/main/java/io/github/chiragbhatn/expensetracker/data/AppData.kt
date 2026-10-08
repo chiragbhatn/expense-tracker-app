@@ -1,6 +1,17 @@
 package io.github.chiragbhatn.expensetracker.data
 
-import AppDatabase
+import io.github.chiragbhatn.expensetracker.data.db.AppDatabase
+import io.github.chiragbhatn.expensetracker.data.db.AttachmentEntity
+import io.github.chiragbhatn.expensetracker.data.db.CardPaymentEntity
+import io.github.chiragbhatn.expensetracker.data.db.CashbackRuleEntity
+import io.github.chiragbhatn.expensetracker.data.db.CategoryEntity
+import io.github.chiragbhatn.expensetracker.data.db.CreditCardEntity
+import io.github.chiragbhatn.expensetracker.data.db.ExpenseEntity
+import io.github.chiragbhatn.expensetracker.data.db.IncomeEntity
+import io.github.chiragbhatn.expensetracker.data.db.PersonEntity
+import io.github.chiragbhatn.expensetracker.data.db.RecurringExpenseEntity
+import io.github.chiragbhatn.expensetracker.data.db.ReminderEntity
+import io.github.chiragbhatn.expensetracker.data.db.UdhaarEntryEntity
 import io.github.chiragbhatn.expensetracker.domain.CardMath
 import io.github.chiragbhatn.expensetracker.domain.CardPayment
 import io.github.chiragbhatn.expensetracker.domain.CardSummary
