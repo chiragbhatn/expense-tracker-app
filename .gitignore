@@ -9,3 +9,7 @@ captures/
 *.iml
 .DS_Store
 __pycache__/
+
+# Local secrets
+.env
+*.env
